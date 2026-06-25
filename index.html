@@ -915,6 +915,13 @@ window.toast=toast;
 async function seedIfEmpty(){
   await new Promise(r=>setTimeout(r,2500));
   if(catalog.length>0)return;
+  // Lock to prevent parallel seeding from multiple devices
+  const lockRef=doc(db,'settings','seedLock');
+  const lockSnap=await getDoc(lockRef);
+  if(lockSnap.exists()&&lockSnap.data().locked)return;
+  await setDoc(lockRef,{locked:true,at:Date.now()});
+  await new Promise(r=>setTimeout(r,1500));
+  if(catalog.length>0){await setDoc(lockRef,{locked:false});return;}
 
   const DATA=[
     // משקאות
