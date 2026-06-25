@@ -506,7 +506,10 @@ function renderList(){
 
 window.toggleDeptCollapse=function(dept){
   collapsedDepts[dept]=!collapsedDepts[dept];
-  renderList();
+  const grp=document.getElementById('dg_'+dept);
+  const hdr=grp?.querySelector('.sec-hdr');
+  if(grp) grp.classList.toggle('collapsed', !!collapsedDepts[dept]);
+  if(hdr) hdr.classList.toggle('collapsed', !!collapsedDepts[dept]);
 };
 
 function renderFilterBar(){
@@ -588,7 +591,10 @@ window.renderCatalog=function(){
 window.toggleCatDept=function(dept){
   const key='cat_'+dept;
   collapsedDepts[key]=!collapsedDepts[key];
-  renderCatalog();
+  const grp=document.getElementById('dg_cat_'+dept);
+  const hdr=grp?.querySelector('.sec-hdr');
+  if(grp) grp.classList.toggle('collapsed', !!collapsedDepts[key]);
+  if(hdr) hdr.classList.toggle('collapsed', !!collapsedDepts[key]);
 };
 
 // ── ADD TO LIST MODAL ──
