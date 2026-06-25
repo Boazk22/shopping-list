@@ -472,8 +472,8 @@ function renderList(){
     const grp=groups[dept];
     const pending=grp.filter(i=>!i.done).length;
     const collapsed=collapsedDepts[dept]?'collapsed':'';
-    html+=`<div class="dept-group ${collapsed}" id="dg_${esc(dept)}">
-      <div class="sec-hdr ${collapsed}" onclick="toggleDeptCollapse('${esc(dept)}')">
+    html+=`<div class="dept-group ${collapsed}">
+      <div class="sec-hdr ${collapsed}" onclick="toggleDeptCollapse(this)">
         <span>${esc(dept)} <span style="color:var(--grey-dark);font-weight:normal">${pending}/${grp.length}</span></span>
         <span class="toggle-icon">▾</span>
       </div>`;
@@ -504,12 +504,11 @@ function renderList(){
   renderFilterBar();
 }
 
-window.toggleDeptCollapse=function(dept){
-  collapsedDepts[dept]=!collapsedDepts[dept];
-  const grp=document.getElementById('dg_'+dept);
-  const hdr=grp?.querySelector('.sec-hdr');
-  if(grp) grp.classList.toggle('collapsed', !!collapsedDepts[dept]);
-  if(hdr) hdr.classList.toggle('collapsed', !!collapsedDepts[dept]);
+window.toggleDeptCollapse=function(hdr){
+  const grp=hdr.parentElement;
+  const isNowCollapsed=!grp.classList.contains('collapsed');
+  grp.classList.toggle('collapsed', isNowCollapsed);
+  hdr.classList.toggle('collapsed', isNowCollapsed);
 };
 
 function renderFilterBar(){
@@ -568,8 +567,8 @@ window.renderCatalog=function(){
     for(const dept of Object.keys(groups)){
       const key='cat_'+dept;
       const collapsed=collapsedDepts[key]?'collapsed':'';
-      html+=`<div class="dept-group ${collapsed}" id="dg_cat_${esc(dept)}">
-        <div class="sec-hdr ${collapsed}" onclick="toggleCatDept('${esc(dept)}')">
+      html+=`<div class="dept-group ${collapsed}">
+        <div class="sec-hdr ${collapsed}" onclick="toggleCatDept(this)">
           <span>${esc(dept)} <span style="color:var(--grey-dark);font-weight:normal">(${groups[dept].length})</span></span>
           <span class="toggle-icon">▾</span>
         </div>`;
@@ -588,13 +587,11 @@ window.renderCatalog=function(){
   el.innerHTML=html;
 };
 
-window.toggleCatDept=function(dept){
-  const key='cat_'+dept;
-  collapsedDepts[key]=!collapsedDepts[key];
-  const grp=document.getElementById('dg_cat_'+dept);
-  const hdr=grp?.querySelector('.sec-hdr');
-  if(grp) grp.classList.toggle('collapsed', !!collapsedDepts[key]);
-  if(hdr) hdr.classList.toggle('collapsed', !!collapsedDepts[key]);
+window.toggleCatDept=function(hdr){
+  const grp=hdr.parentElement;
+  const isNowCollapsed=!grp.classList.contains('collapsed');
+  grp.classList.toggle('collapsed', isNowCollapsed);
+  hdr.classList.toggle('collapsed', isNowCollapsed);
 };
 
 // ── ADD TO LIST MODAL ──
