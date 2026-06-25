@@ -96,9 +96,13 @@ header h1 { font-size:1.1rem; font-weight:700; }
 .cat-search input { width:100%; padding:8px 11px; border:1.5px solid var(--grey-mid); border-radius:9px; font-size:.93rem; direction:rtl; outline:none; }
 .cat-search input:focus { border-color:var(--green); }
 .cat-item { background:white; display:flex; align-items:center; padding:10px 13px; border-bottom:1px solid #f5f5f5; gap:9px; }
+.cat-item.in-list { background:#f1f8e9; }
 .cat-item-name { flex:1; font-size:.93rem; }
 .cat-item-dept { font-size:.7rem; color:var(--grey-dark); }
 .cat-add { background:var(--green-light); color:var(--green); border:none; border-radius:8px; padding:5px 11px; font-size:.78rem; font-weight:700; cursor:pointer; white-space:nowrap; }
+.cat-badge { background:var(--green); color:white; border-radius:10px; padding:1px 7px; font-size:.72rem; font-weight:700; }
+
+/* REFERENCE SCREEN */
 
 /* SETTINGS */
 .set-section { background:white; margin:0; border-top:1px solid var(--grey-mid); border-bottom:1px solid var(--grey-mid); }
@@ -120,15 +124,13 @@ header h1 { font-size:1.1rem; font-weight:700; }
 .dept-item { background:white; display:flex; align-items:center; padding:11px 13px; border-bottom:1px solid #f5f5f5; gap:9px; }
 .drag-handle { color:var(--grey-mid); font-size:1.1rem; cursor:grab; }
 
-/* REFERENCE SCREEN */
-.ref-section { background:white; margin-bottom:2px; }
-.ref-hdr { padding:11px 14px; font-size:.85rem; font-weight:700; color:var(--green); border-bottom:1px solid var(--grey-mid); display:flex; justify-content:space-between; align-items:center; cursor:pointer; }
-.ref-table { width:100%; border-collapse:collapse; font-size:.85rem; }
+.ref-section { background:white; margin-bottom:2px; overflow-x:auto; }
+.ref-table { width:100%; border-collapse:collapse; font-size:.85rem; min-width:280px; }
 .ref-table th { background:var(--green-light); padding:7px 11px; text-align:right; font-size:.75rem; color:var(--grey-dark); border-bottom:1px solid var(--grey-mid); }
 .ref-table td { padding:8px 11px; border-bottom:1px solid #f5f5f5; }
 .ref-table tr:last-child td { border-bottom:none; }
-.ref-add { display:flex; gap:7px; padding:10px 13px; background:var(--grey); border-top:1px solid var(--grey-mid); }
-.ref-add input { flex:1; padding:7px 10px; border:1.5px solid var(--grey-mid); border-radius:8px; font-size:.85rem; direction:rtl; outline:none; }
+.ref-add { display:flex; flex-wrap:wrap; gap:6px; padding:10px 13px; background:var(--grey); border-top:1px solid var(--grey-mid); }
+.ref-add input { flex:1; min-width:80px; padding:7px 10px; border:1.5px solid var(--grey-mid); border-radius:8px; font-size:.85rem; direction:rtl; outline:none; }
 .ref-add input:focus { border-color:var(--green); }
 .ref-add button { background:var(--green); color:white; border:none; border-radius:8px; padding:7px 13px; font-size:.85rem; cursor:pointer; white-space:nowrap; }
 
@@ -218,6 +220,13 @@ header h1 { font-size:1.1rem; font-weight:700; }
       </div>
       <label class="toggle"><input type="checkbox" id="toggleFreq" onchange="saveSettings()" checked><div class="ttrack"></div></label>
     </div>
+    <div class="set-row" onclick="showChangePassModal()" style="cursor:pointer">
+      <div class="set-label-wrap">
+        <div class="set-label">קוד מנהל</div>
+        <div class="set-sub" id="passStatus">טוען...</div>
+      </div>
+      <span>›</span>
+    </div>
     <div class="set-row" onclick="clearList()" style="cursor:pointer;color:var(--red)">
       <div class="set-label">נקה רשימת קניות</div><span>›</span>
     </div>
@@ -239,6 +248,29 @@ header h1 { font-size:1.1rem; font-weight:700; }
 <div class="toast" id="toast"></div>
 
 <!-- MODALS -->
+
+<!-- Change admin password -->
+<div class="overlay" id="overlayChangePass">
+  <div class="modal">
+    <h3>קוד מנהל</h3>
+    <div class="mrow" id="currPassRow">
+      <label>קוד נוכחי</label>
+      <input type="password" id="currPass" placeholder="הזן קוד נוכחי...">
+    </div>
+    <div class="mrow">
+      <label>קוד חדש</label>
+      <input type="password" id="newPass" placeholder="הזן קוד חדש...">
+    </div>
+    <div class="mrow">
+      <label>אישור קוד חדש</label>
+      <input type="password" id="newPass2" placeholder="חזור על הקוד החדש...">
+    </div>
+    <div class="mactions">
+      <button class="btn btn-secondary" onclick="closeModal('overlayChangePass')">ביטול</button>
+      <button class="btn btn-primary" onclick="confirmChangePass()">שמור קוד</button>
+    </div>
+  </div>
+</div>
 
 <!-- User picker -->
 <div class="overlay" id="overlayUser">
@@ -367,7 +399,7 @@ const colPrices   = collection(db,"prices");
 const docSettings = doc(db,"settings","main");
 
 let catalog=[], listItems=[], users=[], history={}, weights=[], prices=[];
-let settings={ deptOrder:DEFAULT_DEPTS(), freqSuggestions:true };
+let settings={ deptOrder:DEFAULT_DEPTS(), freqSuggestions:true, adminPass:'' };
 let currentUser=null, currentScreen='list', filterOrderer='all';
 let mItemId=null, mQty=1, eListId=null, eQty=1, eCatId=null;
 let collapsedDepts={};
@@ -574,9 +606,13 @@ window.renderCatalog=function(){
           <span class="toggle-icon">▾</span>
         </div>`;
       groups[dept].forEach(item=>{
-        html+=`<div class="cat-item">
+        const inList=listItems.filter(li=>!li.done&&(li.catalogId===item.id||li.name===item.name));
+        const totalQty=inList.reduce((s,li)=>s+(li.qty||1),0);
+        const inListClass=inList.length?'in-list':'';
+        const badge=inList.length?`<span class="cat-badge">${totalQty}</span>`:'';
+        html+=`<div class="cat-item ${inListClass}">
           <div class="item-main">
-            <div class="cat-item-name">${esc(item.name)}</div>
+            <div class="cat-item-name">${esc(item.name)} ${badge}</div>
           </div>
           <button class="icon-btn" style="color:var(--grey-dark)" onclick="openEditCat('${item.id}')">✎</button>
           <button class="cat-add" onclick="openAddListModal('${item.id}','${esc(item.name)}','${esc(item.dept)}')">+ לרשימה</button>
@@ -614,8 +650,8 @@ window.confirmAddList=async function(){
   await addDoc(colList,{catalogId:mItemId||null,name,dept,orderer,qty:mQty,note,done:false,createdAt:Date.now()});
   await updateHistory(name);
   closeModal('overlayAddList');
-  toast(`"${name}" נוסף`);
-  switchScreen('list',document.getElementById('navList'));
+  toast(`✓ "${name}" נוסף לרשימה`);
+  renderCatalog();
 };
 
 // ── EDIT LIST ITEM ──
@@ -740,6 +776,14 @@ function renderUserList(){
 window.selectUser=function(id){
   const u=users.find(x=>x.id===id);
   if(!u)return;
+  if(u.role==='admin'){
+    const storedPass=settings.adminPass||'';
+    if(storedPass){
+      const pass=prompt(`כניסה כמנהל "${u.name}" — הזן סיסמה:`);
+      if(pass===null)return;
+      if(pass!==storedPass){toast('❌ סיסמה שגויה');return;}
+    }
+  }
   currentUser=u;
   localStorage.setItem('shopping_user',JSON.stringify(u));
   closeModal('overlayUser');
@@ -750,6 +794,14 @@ window.addUser=async function(){
   const name=document.getElementById('newUserName').value.trim();
   const role=document.getElementById('newUserRole').value;
   if(!name)return;
+  if(role==='admin'){
+    const storedPass=settings.adminPass||'';
+    if(storedPass){
+      const pass=prompt('יצירת מנהל — הזן את קוד המנהל:');
+      if(pass===null)return;
+      if(pass!==storedPass){toast('❌ קוד שגוי — לא ניתן ליצור מנהל');return;}
+    }
+  }
   const ref=await addDoc(colUsers,{name,role,createdAt:Date.now()});
   document.getElementById('newUserName').value='';
   if(!currentUser){
@@ -767,7 +819,33 @@ function renderSettings(){
   renderDeptOrderSection();
   const t=document.getElementById('toggleFreq');
   if(t)t.checked=settings.freqSuggestions!==false;
+  const ps=document.getElementById('passStatus');
+  if(ps)ps.textContent=settings.adminPass?'קוד מוגדר ✓':'לא מוגדר';
 }
+window.showChangePassModal=function(){
+  if(!currentUser||currentUser.role!=='admin'){
+    toast('❌ רק מנהל יכול לשנות את הקוד');return;
+  }
+  document.getElementById('currPass').value='';
+  document.getElementById('newPass').value='';
+  document.getElementById('newPass2').value='';
+  const currRow=document.getElementById('currPassRow');
+  currRow.style.display=settings.adminPass?'':'none';
+  openModal('overlayChangePass');
+};
+window.confirmChangePass=async function(){
+  const curr=document.getElementById('currPass').value;
+  const np=document.getElementById('newPass').value.trim();
+  const np2=document.getElementById('newPass2').value.trim();
+  if(settings.adminPass&&curr!==settings.adminPass){toast('❌ קוד נוכחי שגוי');return;}
+  if(!np){toast('❌ הקוד החדש לא יכול להיות ריק');return;}
+  if(np!==np2){toast('❌ הקודים לא תואמים');return;}
+  settings.adminPass=np;
+  await setDoc(docSettings,settings);
+  closeModal('overlayChangePass');
+  renderSettings();
+  toast('✓ קוד מנהל עודכן');
+};
 function renderUsersSection(){
   const el=document.getElementById('usersSection');
   if(!el)return;
