@@ -1,0 +1,1148 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>רשימת קניות</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --green:#2e7d32; --green-light:#e8f5e9; --green-mid:#c8e6c9;
+  --red:#c62828; --red-light:#ffebee;
+  --grey:#f5f5f5; --grey-mid:#e0e0e0; --grey-dark:#888;
+  --text:#212121; --text-light:#757575; --done-color:#bdbdbd;
+  --shadow:0 2px 8px rgba(0,0,0,0.12);
+  --amber:#f57f17; --amber-light:#fffde7;
+}
+body { font-family:'Segoe UI',Arial,sans-serif; background:#f0f4f8; min-height:100vh; direction:rtl; color:var(--text); padding-bottom:72px; }
+
+/* HEADER */
+header { background:var(--green); color:white; padding:13px 16px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:100; box-shadow:var(--shadow); }
+header h1 { font-size:1.1rem; font-weight:700; }
+.user-badge { background:rgba(255,255,255,0.2); border-radius:20px; padding:4px 10px; font-size:0.8rem; cursor:pointer; white-space:nowrap; }
+
+/* BOTTOM NAV */
+.bottom-nav { position:fixed; bottom:0; left:0; right:0; background:white; border-top:1px solid var(--grey-mid); display:flex; z-index:100; box-shadow:0 -2px 8px rgba(0,0,0,0.08); }
+.nav-btn { flex:1; display:flex; flex-direction:column; align-items:center; padding:7px 4px; font-size:0.65rem; color:var(--grey-dark); cursor:pointer; border:none; background:none; gap:2px; }
+.nav-btn .icon { font-size:1.25rem; }
+.nav-btn.active { color:var(--green); font-weight:700; }
+
+/* SCREENS */
+.screen { display:none; }
+.screen.active { display:block; }
+
+/* SECTION HEADERS */
+.sec-hdr { padding:9px 14px 3px; font-size:0.7rem; color:var(--grey-dark); text-transform:uppercase; letter-spacing:.4px; display:flex; align-items:center; justify-content:space-between; cursor:pointer; user-select:none; }
+.sec-hdr .toggle-icon { font-size:0.8rem; transition:transform .2s; }
+.sec-hdr.collapsed .toggle-icon { transform:rotate(-90deg); }
+
+/* ITEM ROWS */
+.item-row { background:white; display:flex; align-items:center; padding:10px 13px; border-bottom:1px solid #f0f0f0; gap:9px; }
+.item-row.done { opacity:.48; }
+.item-row.done .item-name { text-decoration:line-through; color:var(--done-color); }
+.dept-group.collapsed .item-row { display:none; }
+
+/* CIRCLE CHECK */
+.circle-check { width:25px; height:25px; border-radius:50%; border:2.5px solid var(--green-mid); display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; transition:all .15s; font-size:.8rem; color:transparent; }
+.item-row.done .circle-check { background:var(--green); border-color:var(--green); color:white; }
+
+/* ITEM CONTENT */
+.item-main { flex:1; min-width:0; }
+.item-name { font-size:.93rem; font-weight:500; }
+.item-meta { font-size:.72rem; color:var(--text-light); margin-top:1px; }
+.item-note { font-size:.72rem; color:#9c6e00; margin-top:1px; font-style:italic; }
+.tag { display:inline-block; border-radius:10px; padding:1px 7px; font-size:.68rem; margin-left:3px; }
+.tag-me { background:#f3e5f5; color:#6a1b9a; }
+.tag-other { background:#e3f2fd; color:#1565c0; }
+
+/* QTY */
+.qty-ctrl { display:flex; align-items:center; gap:5px; flex-shrink:0; }
+.qty-btn { background:var(--grey); border:none; border-radius:6px; width:24px; height:24px; font-size:.95rem; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+.qty-btn:active { background:var(--grey-mid); }
+.qty-num { min-width:16px; text-align:center; font-weight:700; font-size:.88rem; }
+
+/* ICON BTN */
+.icon-btn { background:none; border:none; color:var(--grey-mid); font-size:1rem; cursor:pointer; padding:4px; flex-shrink:0; }
+.icon-btn:active { color:var(--red); }
+
+/* FILTER BAR */
+.filter-bar { background:white; padding:7px 11px; border-bottom:1px solid var(--grey-mid); display:flex; gap:5px; overflow-x:auto; scrollbar-width:none; }
+.filter-bar::-webkit-scrollbar { display:none; }
+.fchip { background:var(--grey); border:1.5px solid transparent; border-radius:20px; padding:3px 11px; font-size:.78rem; cursor:pointer; white-space:nowrap; flex-shrink:0; }
+.fchip.active { background:var(--green-light); border-color:var(--green); color:var(--green); font-weight:700; }
+
+/* FAB */
+.fab { position:fixed; bottom:78px; left:16px; width:50px; height:50px; border-radius:50%; background:var(--green); color:white; border:none; font-size:1.5rem; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(46,125,50,.4); z-index:50; }
+.fab:active { transform:scale(.92); }
+
+/* MODALS */
+.overlay { position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:200; display:none; align-items:flex-end; justify-content:center; }
+.overlay.open { display:flex; }
+.modal { background:white; border-radius:20px 20px 0 0; padding:20px 18px 34px; width:100%; max-width:500px; max-height:88vh; overflow-y:auto; }
+.modal h3 { font-size:1.05rem; margin-bottom:14px; }
+.mrow { margin-bottom:11px; }
+.mrow label { display:block; font-size:.78rem; color:var(--grey-dark); margin-bottom:3px; }
+.mrow input,.mrow select,.mrow textarea { width:100%; padding:8px 11px; border:1.5px solid var(--grey-mid); border-radius:9px; font-size:.93rem; direction:rtl; outline:none; font-family:inherit; }
+.mrow input:focus,.mrow select:focus,.mrow textarea:focus { border-color:var(--green); }
+.mactions { display:flex; gap:8px; margin-top:14px; }
+.btn { flex:1; padding:10px; border-radius:9px; border:none; font-size:.93rem; cursor:pointer; font-weight:600; }
+.btn-primary { background:var(--green); color:white; }
+.btn-secondary { background:var(--grey); color:var(--text); }
+.btn-danger { background:var(--red-light); color:var(--red); }
+
+/* CATALOG */
+.cat-search { padding:9px 13px; background:white; border-bottom:1px solid var(--grey-mid); }
+.cat-search input { width:100%; padding:8px 11px; border:1.5px solid var(--grey-mid); border-radius:9px; font-size:.93rem; direction:rtl; outline:none; }
+.cat-search input:focus { border-color:var(--green); }
+.cat-item { background:white; display:flex; align-items:center; padding:10px 13px; border-bottom:1px solid #f5f5f5; gap:9px; }
+.cat-item-name { flex:1; font-size:.93rem; }
+.cat-item-dept { font-size:.7rem; color:var(--grey-dark); }
+.cat-add { background:var(--green-light); color:var(--green); border:none; border-radius:8px; padding:5px 11px; font-size:.78rem; font-weight:700; cursor:pointer; white-space:nowrap; }
+
+/* SETTINGS */
+.set-section { background:white; margin:0; border-top:1px solid var(--grey-mid); border-bottom:1px solid var(--grey-mid); }
+.set-row { display:flex; align-items:center; justify-content:space-between; padding:13px 15px; border-bottom:1px solid #f5f5f5; font-size:.93rem; }
+.set-row:last-child { border-bottom:none; }
+.set-label { color:var(--text); }
+.set-sub { font-size:.74rem; color:var(--grey-dark); margin-top:2px; }
+.set-label-wrap { flex:1; }
+
+/* TOGGLE */
+.toggle { position:relative; width:42px; height:23px; flex-shrink:0; }
+.toggle input { opacity:0; width:0; height:0; }
+.ttrack { position:absolute; inset:0; background:var(--grey-mid); border-radius:24px; cursor:pointer; transition:background .2s; }
+.toggle input:checked + .ttrack { background:var(--green); }
+.ttrack::after { content:''; position:absolute; top:3px; right:3px; width:17px; height:17px; background:white; border-radius:50%; transition:transform .2s; }
+.toggle input:checked + .ttrack::after { transform:translateX(-19px); }
+
+/* DEPT ORDER */
+.dept-item { background:white; display:flex; align-items:center; padding:11px 13px; border-bottom:1px solid #f5f5f5; gap:9px; }
+.drag-handle { color:var(--grey-mid); font-size:1.1rem; cursor:grab; }
+
+/* REFERENCE SCREEN */
+.ref-section { background:white; margin-bottom:2px; }
+.ref-hdr { padding:11px 14px; font-size:.85rem; font-weight:700; color:var(--green); border-bottom:1px solid var(--grey-mid); display:flex; justify-content:space-between; align-items:center; cursor:pointer; }
+.ref-table { width:100%; border-collapse:collapse; font-size:.85rem; }
+.ref-table th { background:var(--green-light); padding:7px 11px; text-align:right; font-size:.75rem; color:var(--grey-dark); border-bottom:1px solid var(--grey-mid); }
+.ref-table td { padding:8px 11px; border-bottom:1px solid #f5f5f5; }
+.ref-table tr:last-child td { border-bottom:none; }
+.ref-add { display:flex; gap:7px; padding:10px 13px; background:var(--grey); border-top:1px solid var(--grey-mid); }
+.ref-add input { flex:1; padding:7px 10px; border:1.5px solid var(--grey-mid); border-radius:8px; font-size:.85rem; direction:rtl; outline:none; }
+.ref-add input:focus { border-color:var(--green); }
+.ref-add button { background:var(--green); color:white; border:none; border-radius:8px; padding:7px 13px; font-size:.85rem; cursor:pointer; white-space:nowrap; }
+
+/* SUGGESTION BAR */
+.sugg-bar { background:var(--amber-light); border-bottom:1px solid #f9a825; padding:9px 13px; }
+.sugg-title { font-size:.72rem; color:var(--amber); margin-bottom:5px; font-weight:700; }
+.sugg-chips { display:flex; flex-wrap:wrap; gap:5px; }
+.sugg-chip { background:white; border:1.5px solid #f9a825; color:#e65100; border-radius:20px; padding:3px 11px; font-size:.8rem; cursor:pointer; }
+
+/* CLEAR DONE */
+.clear-done { display:block; width:calc(100% - 26px); margin:9px 13px; padding:9px; background:var(--red-light); color:var(--red); border:1px solid #ffcdd2; border-radius:9px; font-size:.88rem; cursor:pointer; text-align:center; font-weight:600; }
+
+/* EMPTY */
+.empty { text-align:center; padding:55px 20px; color:var(--grey-dark); }
+.empty .emoji { font-size:2.8rem; margin-bottom:10px; }
+
+/* TOAST */
+.toast { position:fixed; bottom:82px; right:50%; transform:translateX(50%); background:#323232; color:white; padding:9px 18px; border-radius:22px; font-size:.85rem; z-index:300; opacity:0; transition:opacity .25s; pointer-events:none; white-space:nowrap; }
+.toast.show { opacity:1; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1 id="headerTitle">🛒 רשימת קניות</h1>
+  <span class="user-badge" onclick="showUserPicker()" id="userBadge">...</span>
+</header>
+
+<!-- SCREENS -->
+<div class="screen active" id="screenList">
+  <div class="filter-bar" id="filterBar"></div>
+  <div id="suggBar" style="display:none" class="sugg-bar">
+    <div class="sugg-title">⏰ אולי שכחת?</div>
+    <div class="sugg-chips" id="suggChips"></div>
+  </div>
+  <div id="listContent"></div>
+</div>
+
+<div class="screen" id="screenCatalog">
+  <div class="cat-search"><input type="text" id="catSearch" placeholder="חיפוש פריט..." oninput="renderCatalog()" autocomplete="off"></div>
+  <div id="catContent"></div>
+</div>
+
+<div class="screen" id="screenReference">
+  <div style="padding:10px 14px 3px;font-size:.7rem;color:var(--grey-dark);text-transform:uppercase;">טבלת משקלות</div>
+  <div class="ref-section">
+    <table class="ref-table" id="weightsTable">
+      <thead><tr><th>פריט</th><th>כמות יחידות</th><th>משקל (ק"ג)</th><th></th></tr></thead>
+      <tbody id="weightsTbody"></tbody>
+    </table>
+    <div class="ref-add">
+      <input type="text" id="wItem" placeholder="פריט">
+      <input type="text" id="wQty" placeholder='כמות' style="max-width:70px">
+      <input type="text" id="wKg" placeholder="ק״ג" style="max-width:60px">
+      <button onclick="addWeight()">+</button>
+    </div>
+  </div>
+
+  <div style="padding:10px 14px 3px;font-size:.7rem;color:var(--grey-dark);text-transform:uppercase;margin-top:8px;">מחירי תבלינים (לק"ג)</div>
+  <div class="ref-section">
+    <table class="ref-table" id="pricesTable">
+      <thead><tr><th>פריט</th><th>מחיר לק"ג</th><th>חנות</th><th></th></tr></thead>
+      <tbody id="pricesTbody"></tbody>
+    </table>
+    <div class="ref-add">
+      <input type="text" id="pItem" placeholder="תבלין">
+      <input type="text" id="pPrice" placeholder="מחיר" style="max-width:70px">
+      <input type="text" id="pStore" placeholder="חנות" style="max-width:80px">
+      <button onclick="addPrice()">+</button>
+    </div>
+  </div>
+</div>
+
+<div class="screen" id="screenSettings">
+  <div style="padding:10px 14px 3px;font-size:.7rem;color:var(--grey-dark);text-transform:uppercase;">משתמשים</div>
+  <div class="set-section" id="usersSection"></div>
+
+  <div style="padding:10px 14px 3px;font-size:.7rem;color:var(--grey-dark);text-transform:uppercase;margin-top:8px;">סדר מחלקות</div>
+  <div class="set-section" id="deptOrderSection"></div>
+
+  <div style="padding:10px 14px 3px;font-size:.7rem;color:var(--grey-dark);text-transform:uppercase;margin-top:8px;">הגדרות</div>
+  <div class="set-section">
+    <div class="set-row">
+      <div class="set-label-wrap">
+        <div class="set-label">הצעות תדירות</div>
+        <div class="set-sub">הצע פריטים שאולי שכחת</div>
+      </div>
+      <label class="toggle"><input type="checkbox" id="toggleFreq" onchange="saveSettings()" checked><div class="ttrack"></div></label>
+    </div>
+    <div class="set-row" onclick="clearList()" style="cursor:pointer;color:var(--red)">
+      <div class="set-label">נקה רשימת קניות</div><span>›</span>
+    </div>
+    <div class="set-row" onclick="showAddDeptModal()" style="cursor:pointer;color:var(--green)">
+      <div class="set-label">+ הוסף מחלקה</div>
+    </div>
+  </div>
+</div>
+
+<!-- BOTTOM NAV -->
+<nav class="bottom-nav">
+  <button class="nav-btn active" onclick="switchScreen('list',this)" id="navList"><span class="icon">🛒</span>רשימה</button>
+  <button class="nav-btn" onclick="switchScreen('catalog',this)" id="navCatalog"><span class="icon">📦</span>מאגר</button>
+  <button class="nav-btn" onclick="switchScreen('reference',this)" id="navReference"><span class="icon">📋</span>עזר</button>
+  <button class="nav-btn" onclick="switchScreen('settings',this)" id="navSettings"><span class="icon">⚙️</span>הגדרות</button>
+</nav>
+
+<button class="fab" id="fab" onclick="onFab()">+</button>
+<div class="toast" id="toast"></div>
+
+<!-- MODALS -->
+
+<!-- User picker -->
+<div class="overlay" id="overlayUser">
+  <div class="modal">
+    <h3>מי אתה?</h3>
+    <div id="userList"></div>
+    <div style="margin-top:14px;border-top:1px solid var(--grey-mid);padding-top:14px;">
+      <div style="font-size:.83rem;color:var(--grey-dark);margin-bottom:7px;">משתמש חדש:</div>
+      <div style="display:flex;gap:7px;">
+        <input type="text" id="newUserName" placeholder="שם..." style="flex:1;padding:8px 11px;border:1.5px solid var(--grey-mid);border-radius:9px;font-size:.93rem;direction:rtl;outline:none;">
+        <select id="newUserRole" style="padding:8px;border:1.5px solid var(--grey-mid);border-radius:9px;font-size:.88rem;">
+          <option value="member">חבר</option>
+          <option value="admin">מנהל</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" style="width:100%;margin-top:9px;" onclick="addUser()">הוסף</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add to list -->
+<div class="overlay" id="overlayAddList">
+  <div class="modal">
+    <h3 id="addListTitle"></h3>
+    <div class="mrow">
+      <label>כמות</label>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="qty-btn" onclick="mQtyChange(-1)" style="width:34px;height:34px;font-size:1.1rem;">−</button>
+        <span id="mQtyVal" style="font-size:1.15rem;font-weight:700;min-width:22px;text-align:center;">1</span>
+        <button class="qty-btn" onclick="mQtyChange(1)" style="width:34px;height:34px;font-size:1.1rem;">+</button>
+      </div>
+    </div>
+    <div class="mrow"><label>מזמין</label><select id="mOrderer"></select></div>
+    <div class="mrow"><label>הערה (אופציונלי)</label><input type="text" id="mNote" placeholder="הערה..."></div>
+    <div class="mactions">
+      <button class="btn btn-secondary" onclick="closeModal('overlayAddList')">ביטול</button>
+      <button class="btn btn-primary" onclick="confirmAddList()">הוסף לרשימה</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit list item -->
+<div class="overlay" id="overlayEditList">
+  <div class="modal">
+    <h3 id="editListTitle"></h3>
+    <div class="mrow">
+      <label>כמות</label>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="qty-btn" onclick="eQtyChange(-1)" style="width:34px;height:34px;font-size:1.1rem;">−</button>
+        <span id="eQtyVal" style="font-size:1.15rem;font-weight:700;min-width:22px;text-align:center;">1</span>
+        <button class="qty-btn" onclick="eQtyChange(1)" style="width:34px;height:34px;font-size:1.1rem;">+</button>
+      </div>
+    </div>
+    <div class="mrow"><label>מזמין</label><select id="eOrderer"></select></div>
+    <div class="mrow"><label>מחלקה</label><select id="eDept"></select></div>
+    <div class="mrow"><label>הערה</label><input type="text" id="eNote" placeholder="הערה..."></div>
+    <div class="mactions">
+      <button class="btn btn-danger" onclick="deleteListItem()">מחק</button>
+      <button class="btn btn-secondary" onclick="closeModal('overlayEditList')">ביטול</button>
+      <button class="btn btn-primary" onclick="confirmEditList()">שמור</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit catalog item -->
+<div class="overlay" id="overlayEditCat">
+  <div class="modal">
+    <h3 id="editCatTitle">ערוך פריט במאגר</h3>
+    <div class="mrow"><label>שם הפריט</label><input type="text" id="ecName"></div>
+    <div class="mrow"><label>מחלקה</label><select id="ecDept"></select></div>
+    <div class="mactions">
+      <button class="btn btn-danger" onclick="deleteCatItem()">מחק ממאגר</button>
+      <button class="btn btn-secondary" onclick="closeModal('overlayEditCat')">ביטול</button>
+      <button class="btn btn-primary" onclick="confirmEditCat()">שמור</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add catalog item -->
+<div class="overlay" id="overlayAddCat">
+  <div class="modal">
+    <h3>פריט חדש במאגר</h3>
+    <div class="mrow"><label>שם הפריט</label><input type="text" id="newCatName" placeholder="שם הפריט..."></div>
+    <div class="mrow"><label>מחלקה</label><select id="newCatDept"></select></div>
+    <div class="mactions">
+      <button class="btn btn-secondary" onclick="closeModal('overlayAddCat')">ביטול</button>
+      <button class="btn btn-primary" onclick="confirmAddCat()">הוסף</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add dept -->
+<div class="overlay" id="overlayAddDept">
+  <div class="modal">
+    <h3>מחלקה חדשה</h3>
+    <div class="mrow"><label>שם</label><input type="text" id="newDeptName" placeholder="שם המחלקה..."></div>
+    <div class="mactions">
+      <button class="btn btn-secondary" onclick="closeModal('overlayAddDept')">ביטול</button>
+      <button class="btn btn-primary" onclick="confirmAddDept()">הוסף</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
+import { getFirestore, collection, doc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, getDoc } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey:"AIzaSyBFEIjcVfJqr9FtS5acFIuETJ_dnWlR_Jo",
+  authDomain:"supermarket-list-7d966.firebaseapp.com",
+  projectId:"supermarket-list-7d966",
+  storageBucket:"supermarket-list-7d966.firebasestorage.app",
+  messagingSenderId:"467796618934",
+  appId:"1:467796618934:web:027b5d7d4dfec6dc404017"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+const colCatalog  = collection(db,"catalog");
+const colList     = collection(db,"list");
+const colUsers    = collection(db,"users");
+const colHistory  = collection(db,"history");
+const colWeights  = collection(db,"weights");
+const colPrices   = collection(db,"prices");
+const docSettings = doc(db,"settings","main");
+
+let catalog=[], listItems=[], users=[], history={}, weights=[], prices=[];
+let settings={ deptOrder:DEFAULT_DEPTS(), freqSuggestions:true };
+let currentUser=null, currentScreen='list', filterOrderer='all';
+let mItemId=null, mQty=1, eListId=null, eQty=1, eCatId=null;
+let collapsedDepts={};
+
+function DEFAULT_DEPTS(){
+  return ["משקאות","ירקות ופירות","מוצרי חלב וביצים","בשר, עוף ודגים",
+    "קרים וקפואים","מאפים","אוכל יבש ואפיה","שמנים, רטבים ופסטה",
+    "שימורים","ממתקים ודגנים","תבלינים","ניקיון","בית מרקחת וטיפוח",
+    "נייר ושקיות","שונות"];
+}
+
+// Listeners
+onSnapshot(query(colCatalog,orderBy("name")), snap=>{
+  catalog=snap.docs.map(d=>({id:d.id,...d.data()}));
+  renderCatalog();
+});
+onSnapshot(query(colList,orderBy("createdAt")), snap=>{
+  listItems=snap.docs.map(d=>({id:d.id,...d.data()}));
+  renderList(); renderSugg();
+});
+onSnapshot(colUsers, snap=>{
+  users=snap.docs.map(d=>({id:d.id,...d.data()}));
+  renderUserBadge(); renderSettings(); populateOrdererSelects();
+});
+onSnapshot(colHistory, snap=>{
+  history={};
+  snap.docs.forEach(d=>{history[d.id]=d.data();});
+  renderSugg();
+});
+onSnapshot(colWeights, snap=>{
+  weights=snap.docs.map(d=>({id:d.id,...d.data()}));
+  renderWeights();
+});
+onSnapshot(colPrices, snap=>{
+  prices=snap.docs.map(d=>({id:d.id,...d.data()}));
+  renderPrices();
+});
+onSnapshot(docSettings, snap=>{
+  if(snap.exists()){
+    const d=snap.data();
+    settings={...settings,...d};
+    if(!settings.deptOrder||!settings.deptOrder.length) settings.deptOrder=DEFAULT_DEPTS();
+  }
+  applySettings(); renderSettings(); renderList(); renderCatalog();
+});
+
+// ── CURRENT USER ──
+function loadCurrentUser(){
+  const s=localStorage.getItem('shopping_user');
+  if(s){ currentUser=JSON.parse(s); renderUserBadge(); }
+  else setTimeout(()=>showUserPicker(),700);
+}
+
+function renderUserBadge(){
+  document.getElementById('userBadge').textContent=currentUser?currentUser.name:'בחר משתמש';
+  renderFilterBar();
+}
+
+// ── SCREENS ──
+window.switchScreen=function(name,btn){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('screen'+cap(name)).classList.add('active');
+  btn.classList.add('active');
+  currentScreen=name;
+  const titles={list:'🛒 רשימת קניות',catalog:'📦 מאגר פריטים',reference:'📋 מידע עזר',settings:'⚙️ הגדרות'};
+  document.getElementById('headerTitle').textContent=titles[name];
+  document.getElementById('fab').style.display=name==='settings'||name==='reference'?'none':'flex';
+};
+function cap(s){return s.charAt(0).toUpperCase()+s.slice(1);}
+
+window.onFab=function(){
+  if(currentScreen==='list') switchScreen('catalog',document.getElementById('navCatalog'));
+  else if(currentScreen==='catalog') showAddCatModal();
+};
+
+// ── RENDER LIST ──
+function renderList(){
+  const el=document.getElementById('listContent');
+  if(!listItems.length){
+    el.innerHTML=`<div class="empty"><div class="emoji">🛒</div><div>הרשימה ריקה<br>עבור למאגר להוסיף פריטים</div></div>`;
+    document.getElementById('filterBar').innerHTML='';
+    return;
+  }
+  let items=filterOrderer==='all'?listItems:listItems.filter(i=>i.orderer===filterOrderer);
+  const deptOrder=settings.deptOrder||DEFAULT_DEPTS();
+  items.sort((a,b)=>{
+    const ai=deptOrder.indexOf(a.dept), bi=deptOrder.indexOf(b.dept);
+    const ad=ai===-1?999:ai, bd=bi===-1?999:bi;
+    if(ad!==bd)return ad-bd;
+    if(a.done!==b.done)return a.done?1:-1;
+    return 0;
+  });
+  const groups={};
+  items.forEach(item=>{
+    const d=item.dept||'שונות';
+    if(!groups[d])groups[d]=[];
+    groups[d].push(item);
+  });
+
+  let html='';
+  for(const dept of Object.keys(groups)){
+    const grp=groups[dept];
+    const pending=grp.filter(i=>!i.done).length;
+    const collapsed=collapsedDepts[dept]?'collapsed':'';
+    html+=`<div class="dept-group ${collapsed}" id="dg_${esc(dept)}">
+      <div class="sec-hdr ${collapsed}" onclick="toggleDeptCollapse('${esc(dept)}')">
+        <span>${esc(dept)} <span style="color:var(--grey-dark);font-weight:normal">${pending}/${grp.length}</span></span>
+        <span class="toggle-icon">▾</span>
+      </div>`;
+    grp.forEach(item=>{
+      const isMe=currentUser&&item.orderer===currentUser.name;
+      const tClass=isMe?'tag tag-me':'tag tag-other';
+      const noteHtml=item.note?`<div class="item-note">📝 ${esc(item.note)}</div>`:'';
+      html+=`<div class="item-row ${item.done?'done':''}" onclick="toggleDone('${item.id}',${item.done})">
+        <div class="circle-check">${item.done?'✓':''}</div>
+        <div class="item-main">
+          <div class="item-name">${esc(item.name)}</div>
+          <div class="item-meta"><span class="${tClass}">${esc(item.orderer||'')}</span></div>
+          ${noteHtml}
+        </div>
+        <div class="qty-ctrl">
+          <button class="qty-btn" onclick="event.stopPropagation();chListQty('${item.id}',-1)">−</button>
+          <span class="qty-num">${item.qty||1}</span>
+          <button class="qty-btn" onclick="event.stopPropagation();chListQty('${item.id}',1)">+</button>
+        </div>
+        <button class="icon-btn" onclick="event.stopPropagation();openEditList('${item.id}')">✎</button>
+      </div>`;
+    });
+    html+='</div>';
+  }
+  const doneCount=items.filter(i=>i.done).length;
+  if(doneCount>0) html+=`<button class="clear-done" onclick="clearDone()">🗑 נקה ${doneCount} פריטים שנלקחו</button>`;
+  el.innerHTML=html;
+  renderFilterBar();
+}
+
+window.toggleDeptCollapse=function(dept){
+  collapsedDepts[dept]=!collapsedDepts[dept];
+  renderList();
+};
+
+function renderFilterBar(){
+  const el=document.getElementById('filterBar');
+  if(!listItems.length){el.innerHTML='';return;}
+  const orderers=[...new Set(listItems.map(i=>i.orderer).filter(Boolean))];
+  if(orderers.length<2){el.innerHTML='';return;}
+  let html=`<div class="fchip ${filterOrderer==='all'?'active':''}" onclick="setFilter('all')">הכל</div>`;
+  orderers.forEach(o=>{html+=`<div class="fchip ${filterOrderer===o?'active':''}" onclick="setFilter('${esc(o)}')">${esc(o)}</div>`;});
+  el.innerHTML=html;
+}
+window.setFilter=function(v){filterOrderer=v;renderList();};
+
+// ── SUGGESTIONS ──
+function renderSugg(){
+  const bar=document.getElementById('suggBar');
+  if(!settings.freqSuggestions){bar.style.display='none';return;}
+  const inList=new Set(listItems.map(i=>i.name.toLowerCase()));
+  const now=Date.now(), DAY=86400000;
+  const cands=Object.values(history)
+    .filter(h=>!inList.has((h.name||'').toLowerCase())&&h.count>=2)
+    .filter(h=>{
+      if(!h.lastAt)return false;
+      const daysSince=(now-h.lastAt)/DAY;
+      return daysSince>=(h.avgInterval||14)*0.8;
+    })
+    .sort((a,b)=>b.count-a.count).slice(0,6);
+  if(!cands.length){bar.style.display='none';return;}
+  bar.style.display='block';
+  document.getElementById('suggChips').innerHTML=cands.map(h=>
+    `<span class="sugg-chip" onclick="quickAdd('${esc(h.name)}')">${esc(h.name)}</span>`
+  ).join('');
+}
+window.quickAdd=function(name){
+  const c=catalog.find(x=>x.name.toLowerCase()===name.toLowerCase());
+  openAddListModal(c?c.id:null,name,c?c.dept:'שונות');
+};
+
+// ── RENDER CATALOG ──
+window.renderCatalog=function(){
+  const el=document.getElementById('catContent');
+  const q=document.getElementById('catSearch')?.value.toLowerCase()||'';
+  let items=catalog.filter(c=>!q||c.name.toLowerCase().includes(q)||c.dept.toLowerCase().includes(q));
+  const deptOrder=settings.deptOrder||DEFAULT_DEPTS();
+  items.sort((a,b)=>{
+    const ai=deptOrder.indexOf(a.dept),bi=deptOrder.indexOf(b.dept);
+    if((ai===-1?999:ai)!==(bi===-1?999:bi))return(ai===-1?999:ai)-(bi===-1?999:bi);
+    return a.name.localeCompare(b.name,'he');
+  });
+  const groups={};
+  items.forEach(item=>{const d=item.dept||'שונות';if(!groups[d])groups[d]=[];groups[d].push(item);});
+
+  let html='';
+  if(!items.length){html=`<div class="empty"><div class="emoji">📦</div><div>לא נמצאו פריטים</div></div>`;}
+  else{
+    for(const dept of Object.keys(groups)){
+      const key='cat_'+dept;
+      const collapsed=collapsedDepts[key]?'collapsed':'';
+      html+=`<div class="dept-group ${collapsed}" id="dg_cat_${esc(dept)}">
+        <div class="sec-hdr ${collapsed}" onclick="toggleCatDept('${esc(dept)}')">
+          <span>${esc(dept)} <span style="color:var(--grey-dark);font-weight:normal">(${groups[dept].length})</span></span>
+          <span class="toggle-icon">▾</span>
+        </div>`;
+      groups[dept].forEach(item=>{
+        html+=`<div class="cat-item">
+          <div class="item-main">
+            <div class="cat-item-name">${esc(item.name)}</div>
+          </div>
+          <button class="icon-btn" style="color:var(--grey-dark)" onclick="openEditCat('${item.id}')">✎</button>
+          <button class="cat-add" onclick="openAddListModal('${item.id}','${esc(item.name)}','${esc(item.dept)}')">+ לרשימה</button>
+        </div>`;
+      });
+      html+='</div>';
+    }
+  }
+  el.innerHTML=html;
+};
+
+window.toggleCatDept=function(dept){
+  const key='cat_'+dept;
+  collapsedDepts[key]=!collapsedDepts[key];
+  renderCatalog();
+};
+
+// ── ADD TO LIST MODAL ──
+window.openAddListModal=function(catId,name,dept){
+  mItemId=catId; mQty=1;
+  const t=document.getElementById('addListTitle');
+  t.textContent=`הוסף: ${name}`; t.dataset.name=name; t.dataset.dept=dept;
+  document.getElementById('mQtyVal').textContent='1';
+  document.getElementById('mNote').value='';
+  populateOrdererSelects('mOrderer');
+  openModal('overlayAddList');
+};
+window.mQtyChange=function(d){mQty=Math.max(1,mQty+d);document.getElementById('mQtyVal').textContent=mQty;};
+window.confirmAddList=async function(){
+  const t=document.getElementById('addListTitle');
+  const name=t.dataset.name, dept=t.dataset.dept;
+  const orderer=document.getElementById('mOrderer').value||(currentUser?.name||'אורח');
+  const note=document.getElementById('mNote').value.trim();
+  await addDoc(colList,{catalogId:mItemId||null,name,dept,orderer,qty:mQty,note,done:false,createdAt:Date.now()});
+  await updateHistory(name);
+  closeModal('overlayAddList');
+  toast(`"${name}" נוסף`);
+  switchScreen('list',document.getElementById('navList'));
+};
+
+// ── EDIT LIST ITEM ──
+window.openEditList=function(id){
+  const item=listItems.find(i=>i.id===id);
+  if(!item)return;
+  eListId=id; eQty=item.qty||1;
+  document.getElementById('editListTitle').textContent=item.name;
+  document.getElementById('eQtyVal').textContent=eQty;
+  document.getElementById('eNote').value=item.note||'';
+  populateOrdererSelects('eOrderer',item.orderer);
+  populateDeptSelect('eDept',item.dept);
+  openModal('overlayEditList');
+};
+window.eQtyChange=function(d){eQty=Math.max(1,eQty+d);document.getElementById('eQtyVal').textContent=eQty;};
+window.confirmEditList=async function(){
+  await updateDoc(doc(db,'list',eListId),{
+    qty:eQty,
+    note:document.getElementById('eNote').value.trim(),
+    orderer:document.getElementById('eOrderer').value,
+    dept:document.getElementById('eDept').value
+  });
+  closeModal('overlayEditList');
+};
+window.deleteListItem=async function(){
+  await deleteDoc(doc(db,'list',eListId));
+  closeModal('overlayEditList'); toast('פריט הוסר');
+};
+
+// ── EDIT CATALOG ITEM ──
+window.openEditCat=function(id){
+  const item=catalog.find(c=>c.id===id);
+  if(!item)return;
+  eCatId=id;
+  document.getElementById('editCatTitle').textContent=`ערוך: ${item.name}`;
+  document.getElementById('ecName').value=item.name;
+  populateDeptSelect('ecDept',item.dept);
+  openModal('overlayEditCat');
+};
+window.confirmEditCat=async function(){
+  await updateDoc(doc(db,'catalog',eCatId),{
+    name:document.getElementById('ecName').value.trim(),
+    dept:document.getElementById('ecDept').value
+  });
+  closeModal('overlayEditCat'); toast('פריט עודכן');
+};
+window.deleteCatItem=async function(){
+  if(!confirm('למחוק פריט מהמאגר?'))return;
+  await deleteDoc(doc(db,'catalog',eCatId));
+  closeModal('overlayEditCat'); toast('פריט נמחק מהמאגר');
+};
+
+// ── ADD CATALOG ITEM ──
+window.showAddCatModal=function(){
+  document.getElementById('newCatName').value='';
+  populateDeptSelect('newCatDept');
+  openModal('overlayAddCat');
+};
+window.confirmAddCat=async function(){
+  const name=document.getElementById('newCatName').value.trim();
+  const dept=document.getElementById('newCatDept').value;
+  if(!name)return;
+  await addDoc(colCatalog,{name,dept,createdAt:Date.now()});
+  closeModal('overlayAddCat'); toast(`"${name}" נוסף למאגר`);
+};
+
+// ── TOGGLE DONE ──
+window.toggleDone=async function(id,current){
+  await updateDoc(doc(db,'list',id),{done:!current,doneAt:!current?Date.now():null});
+};
+window.chListQty=async function(id,d){
+  const item=listItems.find(i=>i.id===id);
+  if(!item)return;
+  await updateDoc(doc(db,'list',id),{qty:Math.max(1,(item.qty||1)+d)});
+};
+window.clearDone=async function(){
+  const done=listItems.filter(i=>i.done);
+  for(const i of done)await deleteDoc(doc(db,'list',i.id));
+  toast(`${done.length} פריטים הוסרו`);
+};
+window.clearList=async function(){
+  if(!confirm('למחוק את כל הרשימה?'))return;
+  for(const i of listItems)await deleteDoc(doc(db,'list',i.id));
+  toast('הרשימה נוקתה');
+};
+
+// ── HISTORY ──
+async function updateHistory(name){
+  const key=name.trim().toLowerCase();
+  const ref=doc(colHistory,key);
+  const snap=await getDoc(ref);
+  const now=Date.now();
+  if(snap.exists()){
+    const d=snap.data();
+    const count=(d.count||0)+1;
+    const intervals=d.intervals||[];
+    const diff=(now-(d.lastAt||now))/86400000;
+    if(diff>0)intervals.push(diff);
+    const avgInterval=intervals.length?intervals.slice(-10).reduce((a,b)=>a+b,0)/Math.min(intervals.length,10):14;
+    await setDoc(ref,{name,count,lastAt:now,intervals,avgInterval});
+  }else{
+    await setDoc(ref,{name,count:1,lastAt:now,intervals:[],avgInterval:14});
+  }
+}
+
+// ── USERS ──
+window.showUserPicker=function(){renderUserList();openModal('overlayUser');};
+function renderUserList(){
+  const el=document.getElementById('userList');
+  if(!users.length){el.innerHTML=`<div style="color:var(--grey-dark);font-size:.83rem;margin-bottom:7px;">אין משתמשים עדיין.</div>`;return;}
+  el.innerHTML=users.map(u=>`
+    <div class="item-row" onclick="selectUser('${u.id}')" style="cursor:pointer;${currentUser?.id===u.id?'background:var(--green-light);':''}">
+      <div class="circle-check" style="${currentUser?.id===u.id?'background:var(--green);border-color:var(--green);color:white;':''}">
+        ${currentUser?.id===u.id?'✓':''}
+      </div>
+      <div class="item-main">
+        <div class="item-name">${esc(u.name)}</div>
+        <div class="item-meta">${u.role==='admin'?'מנהל':'חבר'}</div>
+      </div>
+    </div>`).join('');
+}
+window.selectUser=function(id){
+  const u=users.find(x=>x.id===id);
+  if(!u)return;
+  currentUser=u;
+  localStorage.setItem('shopping_user',JSON.stringify(u));
+  closeModal('overlayUser');
+  renderUserBadge();
+  toast(`שלום, ${u.name}!`);
+};
+window.addUser=async function(){
+  const name=document.getElementById('newUserName').value.trim();
+  const role=document.getElementById('newUserRole').value;
+  if(!name)return;
+  const ref=await addDoc(colUsers,{name,role,createdAt:Date.now()});
+  document.getElementById('newUserName').value='';
+  if(!currentUser){
+    currentUser={id:ref.id,name,role};
+    localStorage.setItem('shopping_user',JSON.stringify(currentUser));
+    closeModal('overlayUser');
+    renderUserBadge();
+    toast(`שלום, ${name}!`);
+  }else renderUserList();
+};
+
+// ── SETTINGS ──
+function renderSettings(){
+  renderUsersSection();
+  renderDeptOrderSection();
+  const t=document.getElementById('toggleFreq');
+  if(t)t.checked=settings.freqSuggestions!==false;
+}
+function renderUsersSection(){
+  const el=document.getElementById('usersSection');
+  if(!el)return;
+  if(!users.length){el.innerHTML=`<div class="set-row">אין משתמשים</div>`;return;}
+  el.innerHTML=users.map(u=>`
+    <div class="set-row">
+      <div class="set-label-wrap">
+        <div class="set-label">${esc(u.name)}</div>
+        <div class="set-sub">${u.role==='admin'?'מנהל':'חבר'}</div>
+      </div>
+      <button onclick="deleteUser('${u.id}')" style="background:none;border:none;color:var(--grey-dark);cursor:pointer;font-size:1rem;">✕</button>
+    </div>`).join('');
+}
+window.deleteUser=async function(id){
+  if(!confirm('למחוק משתמש?'))return;
+  await deleteDoc(doc(db,'users',id));
+};
+function renderDeptOrderSection(){
+  const el=document.getElementById('deptOrderSection');
+  if(!el)return;
+  const order=settings.deptOrder||DEFAULT_DEPTS();
+  el.innerHTML=order.map((d,i)=>`
+    <div class="dept-item">
+      <span class="drag-handle">☰</span>
+      <span style="flex:1">${esc(d)}</span>
+      <span style="display:flex;gap:5px;">
+        <button onclick="moveDept(${i},-1)" style="background:none;border:none;cursor:pointer;font-size:1rem;color:var(--grey-dark)">↑</button>
+        <button onclick="moveDept(${i},1)" style="background:none;border:none;cursor:pointer;font-size:1rem;color:var(--grey-dark)">↓</button>
+      </span>
+    </div>`).join('');
+}
+window.moveDept=async function(idx,dir){
+  const order=[...(settings.deptOrder||DEFAULT_DEPTS())];
+  const ni=idx+dir;
+  if(ni<0||ni>=order.length)return;
+  [order[idx],order[ni]]=[order[ni],order[idx]];
+  settings.deptOrder=order;
+  await setDoc(docSettings,settings);
+};
+window.showAddDeptModal=function(){document.getElementById('newDeptName').value='';openModal('overlayAddDept');};
+window.confirmAddDept=async function(){
+  const name=document.getElementById('newDeptName').value.trim();
+  if(!name)return;
+  settings.deptOrder=[...(settings.deptOrder||DEFAULT_DEPTS()),name];
+  await setDoc(docSettings,settings);
+  closeModal('overlayAddDept');
+  toast(`מחלקה "${name}" נוספה`);
+};
+window.saveSettings=async function(){
+  settings.freqSuggestions=document.getElementById('toggleFreq').checked;
+  await setDoc(docSettings,settings);
+  renderSugg();
+};
+function applySettings(){
+  const t=document.getElementById('toggleFreq');
+  if(t)t.checked=settings.freqSuggestions!==false;
+}
+
+// ── REFERENCE ──
+function renderWeights(){
+  const tb=document.getElementById('weightsTbody');
+  if(!tb)return;
+  tb.innerHTML=weights.map(w=>`
+    <tr>
+      <td>${esc(w.item)}</td>
+      <td>${esc(w.qty)}</td>
+      <td>${esc(w.kg)}</td>
+      <td><button onclick="deleteWeight('${w.id}')" style="background:none;border:none;color:var(--grey-dark);cursor:pointer;">✕</button></td>
+    </tr>`).join('');
+}
+window.addWeight=async function(){
+  const item=document.getElementById('wItem').value.trim();
+  const qty=document.getElementById('wQty').value.trim();
+  const kg=document.getElementById('wKg').value.trim();
+  if(!item)return;
+  await addDoc(colWeights,{item,qty,kg,createdAt:Date.now()});
+  document.getElementById('wItem').value='';
+  document.getElementById('wQty').value='';
+  document.getElementById('wKg').value='';
+};
+window.deleteWeight=async function(id){await deleteDoc(doc(db,'weights',id));};
+
+function renderPrices(){
+  const tb=document.getElementById('pricesTbody');
+  if(!tb)return;
+  tb.innerHTML=prices.map(p=>`
+    <tr>
+      <td>${esc(p.item)}</td>
+      <td>${esc(p.price)} ₪</td>
+      <td>${esc(p.store||'')}</td>
+      <td><button onclick="deletePrice('${p.id}')" style="background:none;border:none;color:var(--grey-dark);cursor:pointer;">✕</button></td>
+    </tr>`).join('');
+}
+window.addPrice=async function(){
+  const item=document.getElementById('pItem').value.trim();
+  const price=document.getElementById('pPrice').value.trim();
+  const store=document.getElementById('pStore').value.trim();
+  if(!item)return;
+  await addDoc(colPrices,{item,price,store,createdAt:Date.now()});
+  document.getElementById('pItem').value='';
+  document.getElementById('pPrice').value='';
+  document.getElementById('pStore').value='';
+};
+window.deletePrice=async function(id){await deleteDoc(doc(db,'prices',id));};
+
+// ── HELPERS ──
+function populateOrdererSelects(selectId,selected){
+  const ids=selectId?[selectId]:['mOrderer'];
+  ids.forEach(id=>{
+    const sel=document.getElementById(id);
+    if(!sel)return;
+    const cur=selected||currentUser?.name||'';
+    sel.innerHTML=users.length
+      ?users.map(u=>`<option value="${esc(u.name)}" ${u.name===cur?'selected':''}>${esc(u.name)}</option>`).join('')
+      :`<option value="אורח">אורח</option>`;
+  });
+}
+function populateDeptSelect(id,selected){
+  const sel=document.getElementById(id);
+  if(!sel)return;
+  const order=settings.deptOrder||DEFAULT_DEPTS();
+  sel.innerHTML=order.map(d=>`<option value="${esc(d)}" ${d===selected?'selected':''}>${esc(d)}</option>`).join('');
+}
+window.openModal=function(id){document.getElementById(id).classList.add('open');};
+window.closeModal=function(id){document.getElementById(id).classList.remove('open');};
+document.querySelectorAll('.overlay').forEach(ov=>{
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.classList.remove('open');});
+});
+function esc(str){
+  if(!str)return'';
+  return String(str).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+let toastTimer;
+function toast(msg){
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>el.classList.remove('show'),2500);
+}
+window.toast=toast;
+
+// ── SEED CATALOG ──
+async function seedIfEmpty(){
+  await new Promise(r=>setTimeout(r,2500));
+  if(catalog.length>0)return;
+
+  const DATA=[
+    // משקאות
+    ["מים","משקאות"],["מים קטנים","משקאות"],["קולה","משקאות"],["קולה זירו","משקאות"],
+    ["פיוז טי אפרסק","משקאות"],["פנטה","משקאות"],["בירה","משקאות"],["סודה","משקאות"],
+    ["מיץ תפוחים","משקאות"],["שתייה קלה תפוחים פריגת","משקאות"],
+    ["יין מוסקט","משקאות"],["יין אדום","משקאות"],["יין קידוש / תירוש","משקאות"],
+    ["נס קפה","משקאות"],["שוקולית","משקאות"],["תה","משקאות"],
+    // ירקות ופירות
+    ["אבטיח","ירקות ופירות"],["אבוקדו","ירקות ופירות"],["אגס","ירקות ופירות"],
+    ["אפרסמון","ירקות ופירות"],["אפרסק","ירקות ופירות"],["בזיליקום טרי","ירקות ופירות"],
+    ["בטטה","ירקות ופירות"],["בננה","ירקות ופירות"],["בצל","ירקות ופירות"],
+    ["בצל סגול","ירקות ופירות"],["בצל ירוק","ירקות ופירות"],["רוקט / אורוגולה","ירקות ופירות"],
+    ["בצלי שאלוט","ירקות ופירות"],["ברוקולי","ירקות ופירות"],["גזר מגורר","ירקות ופירות"],
+    ["גינגר","ירקות ופירות"],["דובדבן","ירקות ופירות"],["דלורית","ירקות ופירות"],
+    ["דלעת","ירקות ופירות"],["חציל","ירקות ופירות"],["חסה שטופה חתוכה","ירקות ופירות"],
+    ["טימין טרי","ירקות ופירות"],["ירקות לסלט","ירקות ופירות"],["כוסברה","ירקות ופירות"],
+    ["כרוב לבן","ירקות ופירות"],["כרוב סגול","ירקות ופירות"],["כרובית","ירקות ופירות"],
+    ["כרישה","ירקות ופירות"],["לימון","ירקות ופירות"],["מנגו","ירקות ופירות"],
+    ["מלון","ירקות ופירות"],["מלפפון","ירקות ופירות"],["מנגולד","ירקות ופירות"],
+    ["מרווה","ירקות ופירות"],["עגבניה","ירקות ופירות"],["עגבניות מגי","ירקות ופירות"],
+    ["עגבניות שרי","ירקות ופירות"],["עלים לסלט","ירקות ופירות"],["ענבים","ירקות ופירות"],
+    ["נבטי ברוקולי","ירקות ופירות"],["נענע","ירקות ופירות"],["סלק בואקום","ירקות ופירות"],
+    ["סלרי גבעולים","ירקות ופירות"],["סלרי שורש","ירקות ופירות"],["עלי בייבי","ירקות ופירות"],
+    ["פומלית","ירקות ופירות"],["פומלה","ירקות ופירות"],["פטריות","ירקות ופירות"],
+    ["פטריות פורטבלו","ירקות ופירות"],["פטריות מלך היער","ירקות ופירות"],
+    ["פטרוזיליה","ירקות ופירות"],["פלפל אדום שושקה","ירקות ופירות"],
+    ["פלפל חריף צ'ילי","ירקות ופירות"],["צנונית","ירקות ופירות"],
+    ["קישוא","ירקות ופירות"],["קייל","ירקות ופירות"],["קולורבי","ירקות ופירות"],
+    ["קלמנטינה","ירקות ופירות"],["רוזמרין","ירקות ופירות"],["רימון גרגירים","ירקות ופירות"],
+    ["שום","ירקות ופירות"],["שומר","ירקות ופירות"],["שורש פטרוזיליה","ירקות ופירות"],
+    ["שמיר","ירקות ופירות"],["תותים","ירקות ופירות"],["תירס","ירקות ופירות"],
+    ["תמרים דקל נור","ירקות ופירות"],["תפו\"א","ירקות ופירות"],["תפו\"א אדום","ירקות ופירות"],
+    ["תפוז","ירקות ופירות"],["תפוח","ירקות ופירות"],["תפוח סמית","ירקות ופירות"],
+    ["תרד טרי","ירקות ופירות"],["טופו","ירקות ופירות"],
+    // מוצרי חלב וביצים
+    ["אקטימל","מוצרי חלב וביצים"],["חמאה","מוצרי חלב וביצים"],
+    ["גבינה צהובה","מוצרי חלב וביצים"],["גבנצ 250","מוצרי חלב וביצים"],
+    ["גבנצ מגוררת 200","מוצרי חלב וביצים"],["גבינת לבנה","מוצרי חלב וביצים"],
+    ["גבינה צפתית","מוצרי חלב וביצים"],["גבינת עיזים","מוצרי חלב וביצים"],
+    ["גבינת טבורג 1%","מוצרי חלב וביצים"],["גבנל תנובה 750","מוצרי חלב וביצים"],
+    ["גבנל 500","מוצרי חלב וביצים"],["גבנל 250","מוצרי חלב וביצים"],
+    ["בולגרית 16% המושבה","מוצרי חלב וביצים"],["בולגרית 5%","מוצרי חלב וביצים"],
+    ["פטה צאן השומרון","מוצרי חלב וביצים"],["פטה ויליפוד 21%","מוצרי חלב וביצים"],
+    ["קוטג 6%","מוצרי חלב וביצים"],["חלב","מוצרי חלב וביצים"],
+    ["סימפוניה / שמנת / גבינת עיזים","מוצרי חלב וביצים"],
+    ["שמנת 2%","מוצרי חלב וביצים"],["שמנת בישול","מוצרי חלב וביצים"],
+    ["שמנת לקצפת","מוצרי חלב וביצים"],["קצפת צמחית","מוצרי חלב וביצים"],
+    ["יוגורט","מוצרי חלב וביצים"],["יוגורט יווני 200 מל","מוצרי חלב וביצים"],
+    ["יוגורט חלבון","מוצרי חלב וביצים"],["יוגורט עיזים","מוצרי חלב וביצים"],
+    ["ריוויון","מוצרי חלב וביצים"],["ריקוטה","מוצרי חלב וביצים"],
+    ["מוצרלה מגוררת","מוצרי חלב וביצים"],["מסקרפונה","מוצרי חלב וביצים"],
+    ["פרמזן","מוצרי חלב וביצים"],["קממבר","מוצרי חלב וביצים"],
+    ["קשקבל מגורר","מוצרי חלב וביצים"],["ביצים","מוצרי חלב וביצים"],
+    ["גפילטעפיש מבושלת","מוצרי חלב וביצים"],["מעדן יוגורט חלבון","מוצרי חלב וביצים"],
+    ["פסטו","מוצרי חלב וביצים"],["רביולי","מוצרי חלב וביצים"],
+    ["עללחם ארטישוק","מוצרי חלב וביצים"],["עללחם עגבניות","מוצרי חלב וביצים"],
+    ["עללחם פלפלים קלויים","מוצרי חלב וביצים"],["לימון כבוש","מוצרי חלב וביצים"],
+    ["חזרת","מוצרי חלב וביצים"],["חרוסת","מוצרי חלב וביצים"],
+    // בשר, עוף ודגים
+    ["בקר טחון","בשר, עוף ודגים"],["עוף טחון","בשר, עוף ודגים"],
+    ["עוף לשניצל","בשר, עוף ודגים"],["חזה עוף","בשר, עוף ודגים"],
+    ["עוף פילה","בשר, עוף ודגים"],["פולקע","בשר, עוף ודגים"],
+    ["פרגית","בשר, עוף ודגים"],["כרעיים","בשר, עוף ודגים"],
+    ["קוביות בשר לצולנט","בשר, עוף ודגים"],["עצמות בקר","בשר, עוף ודגים"],
+    ["דג סלמון","בשר, עוף ודגים"],["סלמון מעושן","בשר, עוף ודגים"],
+    ["נקניק","בשר, עוף ודגים"],["נקניקיות וינר טירת צבי","בשר, עוף ודגים"],
+    ["קבנוס טירת צבי","בשר, עוף ודגים"],
+    // קרים וקפואים
+    ["בורקס","קרים וקפואים"],["בצק פילס","קרים וקפואים"],["בצק פילו","קרים וקפואים"],
+    ["בצק פריך מלוח","קרים וקפואים"],["גלידה","קרים וקפואים"],["גלידוניות","קרים וקפואים"],
+    ["ג'ינג'ר קפוא","קרים וקפואים"],["המבורגר / קבב","קרים וקפואים"],
+    ["המבורגר ביונד מיט","קרים וקפואים"],["חטיפי ברוקולי טבעול","קרים וקפואים"],
+    ["חטיפי כרובית טבעול","קרים וקפואים"],["טחון טבעוני","קרים וקפואים"],
+    ["חצילים בטחינה שמיר","קרים וקפואים"],["חצילים במיונז שמיר","קרים וקפואים"],
+    ["סלט חציל חריף","קרים וקפואים"],["סלט פלפל חריף","קרים וקפואים"],
+    ["טבעות בצל","קרים וקפואים"],["מקרוסקה","קרים וקפואים"],
+    ["פירות קפואים אננס","קרים וקפואים"],["פירות קפואים דובדבנים","קרים וקפואים"],
+    ["פירות קפואים מנגו","קרים וקפואים"],["פירות קפואים אוכמניות","קרים וקפואים"],
+    ["פתיתי כרובית","קרים וקפואים"],["פתיתי ברוקולי","קרים וקפואים"],
+    ["ירקות קפואים אדממה","קרים וקפואים"],["ירקות קפואים אפונה","קרים וקפואים"],
+    ["ירקות קפואים ברוקולי","קרים וקפואים"],["ירקות קפואים מיני ברוקולי","קרים וקפואים"],
+    ["ירקות קפואים כרובית","קרים וקפואים"],["ירקות קפואים תרד","קרים וקפואים"],
+    ["ירקות קפואים שעועית ירוקה","קרים וקפואים"],["ירקות קפואים שעועית אדומה","קרים וקפואים"],
+    ["ירקות קפואים חומוס","קרים וקפואים"],["ירקות קפואים לתנור","קרים וקפואים"],
+    ["ירקות קפואים אנטיפסטי","קרים וקפואים"],["ירקות קפואים להקפצה","קרים וקפואים"],
+    ["לבבות ארטישוק קפואים","קרים וקפואים"],["ירקות קפואים מקסיקני","קרים וקפואים"],
+    ["ירקות קפואים קטניות","קרים וקפואים"],["ירקות קפואים תירס","קרים וקפואים"],
+    ["ציפס קפוא","קרים וקפואים"],["קישקה","קרים וקפואים"],
+    ["קציצות ירקות טבעול","קרים וקפואים"],["קציצות קינואה טבעול","קרים וקפואים"],
+    ["שניצל","קרים וקפואים"],["שניצל תירס","קרים וקפואים"],
+    ["שניצל כרובית","קרים וקפואים"],["שניצל ברוקולי","קרים וקפואים"],
+    ["שניצל תרד","קרים וקפואים"],["כוסברה קפואה","קרים וקפואים"],
+    ["שום קפוא","קרים וקפואים"],["בזיליקום קפוא","קרים וקפואים"],
+    ["פטרוזיליה קפואה","קרים וקפואים"],["יוגורט טבעוני","קרים וקפואים"],
+    ["גבינת מוצרלה קשיו פלנטי","קרים וקפואים"],
+    ["משקה שיבולת שועל אוטלי","קרים וקפואים"],
+    ["משקה שקדים תנובה","קרים וקפואים"],["משקה שקדים גרין","קרים וקפואים"],
+    ["משקה סויה ללא סוכר","קרים וקפואים"],["משקה סויה שופרסל","קרים וקפואים"],
+    // מאפים
+    ["לחם","מאפים"],["פיתות","מאפים"],["פיתות כוסמין","מאפים"],
+    ["חלה","מאפים"],["לחמניות המבורגר","מאפים"],["לחמניות מיוחדות","מאפים"],
+    ["עוגה","מאפים"],["קרקרים","מאפים"],["מצות","מאפים"],["לחם חלבונים","מאפים"],
+    // אוכל יבש ואפיה
+    ["אבקת אפיה","אוכל יבש ואפיה"],["דבש","אוכל יבש ואפיה"],["מלח","אוכל יבש ואפיה"],
+    ["מלח גס","אוכל יבש ואפיה"],["ממרח שוקולד נוטלה","אוכל יבש ואפיה"],
+    ["סולת","אוכל יבש ואפיה"],["סוכר","אוכל יבש ואפיה"],["סוכר חום","אוכל יבש ואפיה"],
+    ["סוכר וניל","אוכל יבש ואפיה"],["סוכר אבקה","אוכל יבש ואפיה"],
+    ["סילאן","אוכל יבש ואפיה"],["פודינג","אוכל יבש ואפיה"],["קורנפלור","אוכל יבש ואפיה"],
+    ["קמח לבן","אוכל יבש ואפיה"],["קמח תופח","אוכל יבש ואפיה"],["קמח מלא","אוכל יבש ואפיה"],
+    ["קמח כוסמין מלא","אוכל יבש ואפיה"],["קמח עדשים","אוכל יבש ואפיה"],
+    ["קמח שקדים","אוכל יבש ואפיה"],["קמח תפוחי אדמה","אוכל יבש ואפיה"],
+    ["קמח חומוס","אוכל יבש ואפיה"],["ריבה","אוכל יבש ואפיה"],
+    ["שוקולד ציפס","אוכל יבש ואפיה"],["שמרים יבשים","אוכל יבש ואפיה"],
+    ["קקאו אורגני","אוכל יבש ואפיה"],["אורז","אוכל יבש ואפיה"],
+    ["בורגול חום","אוכל יבש ואפיה"],["בוטנים מלוחים","אוכל יבש ואפיה"],
+    ["גרנולה ללא סוכר","אוכל יבש ואפיה"],["גריסי פנינה","אוכל יבש ואפיה"],
+    ["דפי אורז","אוכל יבש ואפיה"],["כוסמת","אוכל יבש ואפיה"],
+    ["אפונה יבשה","אוכל יבש ואפיה"],["לוביה","אוכל יבש ואפיה"],
+    ["עדשים ירוקות","אוכל יבש ואפיה"],["עדשים כתומות","אוכל יבש ואפיה"],
+    ["עדשים שחורות","אוכל יבש ואפיה"],["שעועית לימה","אוכל יבש ואפיה"],
+    ["פסטה","אוכל יבש ואפיה"],["פסטה חיטה מלאה","אוכל יבש ואפיה"],
+    ["פסטה עדשים","אוכל יבש ואפיה"],["פסטה כוסמת","אוכל יבש ואפיה"],
+    ["פרורי לחם / פנקו","אוכל יבש ואפיה"],["פריכיות","אוכל יבש ואפיה"],
+    ["קוואקר דק","אוכל יבש ואפיה"],["קוסקוס","אוכל יבש ואפיה"],
+    ["קינואה","אוכל יבש ואפיה"],["שקדי מרק","אוכל יבש ואפיה"],
+    ["תירס פופקורן","אוכל יבש ואפיה"],["איטריות שעועית","אוכל יבש ואפיה"],
+    ["חמאת בוטנים טבעית","אוכל יבש ואפיה"],["ממרח בוטנים","אוכל יבש ואפיה"],
+    ["נודלז","אוכל יבש ואפיה"],["פתיתים עדשים ירוקות","אוכל יבש ואפיה"],
+    ["שמרי בירה","אוכל יבש ואפיה"],["זרעי פשתן","אוכל יבש ואפיה"],
+    // שמנים, רטבים ופסטה
+    ["חומץ תפוחים","שמנים, רטבים ופסטה"],["חרדל דיזון","שמנים, רטבים ופסטה"],
+    ["טחינה אל ארז","שמנים, רטבים ופסטה"],["טריאקי","שמנים, רטבים ופסטה"],
+    ["מייפל","שמנים, רטבים ופסטה"],["מיונז","שמנים, רטבים ופסטה"],
+    ["משחת קארי ירוק","שמנים, רטבים ופסטה"],["קטשופ","שמנים, רטבים ופסטה"],
+    ["רוטב סויה","שמנים, רטבים ופסטה"],["רסק עגבניות","שמנים, רטבים ופסטה"],
+    ["רסק תפוחים","שמנים, רטבים ופסטה"],["קרם קוקוס לייט","שמנים, רטבים ופסטה"],
+    ["נוזל קוקוס","שמנים, רטבים ופסטה"],["רוטב עגבניות","שמנים, רטבים ופסטה"],
+    ["רוטב עגבניות פאסאטה","שמנים, רטבים ופסטה"],["רוטב צ'ילי מתוק","שמנים, רטבים ופסטה"],
+    ["שמן זית","שמנים, רטבים ופסטה"],["שמן קנולה","שמנים, רטבים ופסטה"],
+    ["שמן שומשום","שמנים, רטבים ופסטה"],["שמן קוקוס","שמנים, רטבים ופסטה"],
+    // שימורים
+    ["זיתים","שימורים"],["חומוס שימורים","שימורים"],["טונה במים","שימורים"],
+    ["מלפפון חמוץ","שימורים"],["סרדינים","שימורים"],
+    ["עגבניות חתוכות דק","שימורים"],["עגבניות חתוכות קוביות","שימורים"],
+    ["עגבניות שלמות","שימורים"],["עגבניות מיובשות","שימורים"],
+    ["שיפקה","שימורים"],["תירס שימורים","שימורים"],
+    ["עלי גפן ממולא שופרסל","שימורים"],["שעועית במיץ עגבניות","שימורים"],
+    ["שעועית שחורה שימורים","שימורים"],
+    // ממתקים ודגנים
+    ["בייגלה","ממתקים ודגנים"],["ביסקויט ללא גלוטן","ממתקים ודגנים"],
+    ["בישקוטים","ממתקים ודגנים"],["במבה","ממתקים ודגנים"],["גריסיני","ממתקים ודגנים"],
+    ["דובונים","ממתקים ודגנים"],["דוריטוס","ממתקים ודגנים"],
+    ["עוגיות חמאה","ממתקים ודגנים"],["מסטיק","ממתקים ודגנים"],
+    ["מרשמלו","ממתקים ודגנים"],["פריכיות אורז מלא","ממתקים ודגנים"],
+    ["פופקורן למיקרוגל","ממתקים ודגנים"],["קורנפלקס","ממתקים ודגנים"],
+    ["פסק זמן מיקס","ממתקים ודגנים"],["שוקולד מריר","ממתקים ודגנים"],
+    ["שוקולד מילקה אוראו","ממתקים ודגנים"],["חטיפים","ממתקים ודגנים"],
+    ["תפוציפס","ממתקים ודגנים"],["קרמבו","ממתקים ודגנים"],
+    // תבלינים
+    ["אגוז מוסקט","תבלינים"],["אורגנו","תבלינים"],["בהרט","תבלינים"],
+    ["בזיליקום יבש","תבלינים"],["גראם מסאלה","תבלינים"],["זרעי צ'יה","תבלינים"],
+    ["טימין יבש","תבלינים"],["כורכום","תבלינים"],["כמון","תבלינים"],
+    ["סודה לשתייה","תבלינים"],["פלפל שחור","תבלינים"],["פלפל אנגלי","תבלינים"],
+    ["פפריקה מתוקה","תבלינים"],["קינמון","תבלינים"],["ראס אל חנות","תבלינים"],
+    ["שום גבישי","תבלינים"],["זעתר","תבלינים"],["סומאק","תבלינים"],
+    ["קארי","תבלינים"],["פרג","תבלינים"],["שומשום","תבלינים"],
+    ["קצח","תבלינים"],["תבלין גריל","תבלינים"],["תבלין שווארמה","תבלינים"],
+    // ניקיון
+    ["אבקת כביסה","ניקיון"],["דיזיטול","ניקיון"],["כפפות כלים","ניקיון"],
+    ["כפפות לטקס M","ניקיון"],["כפפות לטקס L","ניקיון"],["מגבוני חיטוי","ניקיון"],
+    ["מגבונים לרצפה","ניקיון"],["מלח למדיח","ניקיון"],["מרכך כביסה","ניקיון"],
+    ["נוזל לשטיפת רצפה","ניקיון"],["סבון כלים","ניקיון"],["סבון כביסה","ניקיון"],
+    ["סבון כביסה קפסולות","ניקיון"],["סמרטוט מיקרופייבר","ניקיון"],
+    ["נוזל הברקה למדיח","ניקיון"],["קפסולות למדיח פיניש","ניקיון"],
+    ["קרם ניקוי לכיריים","ניקיון"],["סנו אנטי קאלק","ניקיון"],
+    ["סנו ז'אבל","ניקיון"],["חומר ניקוי לשירותים סיליט","ניקיון"],
+    // בית מרקחת וטיפוח
+    ["אלכוהול","בית מרקחת וטיפוח"],["אלכוגל קטן","בית מרקחת וטיפוח"],
+    ["אציטון","בית מרקחת וטיפוח"],["בי 12","בית מרקחת וטיפוח"],
+    ["דיאודורנט","בית מרקחת וטיפוח"],["חוט דנטאלי","בית מרקחת וטיפוח"],
+    ["טמפון","בית מרקחת וטיפוח"],["מברשת שיניים","בית מרקחת וטיפוח"],
+    ["מגיני תחתון","בית מרקחת וטיפוח"],["משחת שיניים","בית מרקחת וטיפוח"],
+    ["סבון ידיים","בית מרקחת וטיפוח"],["סבון גוף","בית מרקחת וטיפוח"],
+    ["סכיני גילוח","בית מרקחת וטיפוח"],["פלסטרים","בית מרקחת וטיפוח"],
+    ["קסמי אוזניים","בית מרקחת וטיפוח"],["קסמי שיניים","בית מרקחת וטיפוח"],
+    ["קרם גוף","בית מרקחת וטיפוח"],["קרם הגנה","בית מרקחת וטיפוח"],
+    ["קרם ידיים","בית מרקחת וטיפוח"],["קצף גילוח","בית מרקחת וטיפוח"],
+    ["שמפו","בית מרקחת וטיפוח"],["שמפון פינוק","בית מרקחת וטיפוח"],
+    ["ראשים למברשת שיניים","בית מרקחת וטיפוח"],["מסיכת שיער","בית מרקחת וטיפוח"],
+    ["תחליב רחצה","בית מרקחת וטיפוח"],["מסיכות","בית מרקחת וטיפוח"],
+    ["פדים להסרת איפור","בית מרקחת וטיפוח"],
+    // נייר ושקיות
+    ["טישו","נייר ושקיות"],["מגבונים","נייר ושקיות"],["מפיות יפות","נייר ושקיות"],
+    ["נייר רב מגבת","נייר ושקיות"],["נייר טואלט","נייר ושקיות"],["נייר מגבת","נייר ושקיות"],
+    ["שקיות סנדוויץ","נייר ושקיות"],["שקיות 25×35","נייר ושקיות"],
+    ["שקיות גדולות חזקות","נייר ושקיות"],["נייר אפיה","נייר ושקיות"],
+    ["נייר כסף צר","נייר ושקיות"],["נייר כסף רחב","נייר ושקיות"],
+    ["ניילון נצמד","נייר ושקיות"],["תבניות","נייר ושקיות"],
+    ["כוסות נייר","נייר ושקיות"],["מזלגות חד\"פ","נייר ושקיות"],
+    // שונות
+    ["אטבי כביסה","שונות"],["בלוני גז","שונות"],["גפרורים","שונות"],
+    ["נורות","שונות"],["נרות נשמה","שונות"],["נרות חנוכה","שונות"],
+    ["סוללות","שונות"],["פתיון ג'וקים","שונות"],["פקק לבקבוקי יין","שונות"],
+    ["קופסאות","שונות"],["פינג'אן","שונות"],["אוזניות","שונות"],
+    ["סיכות בטחון","שונות"],
+  ];
+
+  // Seed weights table
+  const WEIGHTS=[
+    ["מלפפון גדול","8","1.2"],["לימון גדול","5","1"],["פלפל אדום","6","1"],
+    ["תפוח","6","1"],["בטטה","2","1"],["עגבניה","9","1"],
+    ["חציל גדול","3","1.6"],["פלפל חריף","11","0.5"],["לימון","12","1"],["בצל","18","1.5"],
+  ];
+  // Seed prices table
+  const PRICES=[
+    ["גרעיני עפולה","",""],["אגוזי מלך","50",""],["אגוזי מקדמיה","",""],
+    ["בוטנים שבורים","",""],["גרעיני דלעת","",""],["גרעיני חמניה","24",""],
+    ["זרעי פשתן","18",""],["חמוציות לא מסוכרות","",""],["כמון","99",""],
+    ["פיסטוק לא מומלח","",""],["פלפל שחור","98",""],["פקאן","84",""],
+    ["קוקוס טחון","40",""],["קצח","58",""],["צימוקים","36",""],
+    ["צנוברים","",""],["קשיו","",""],["ראס אל חנות","84",""],
+    ["שקדים","60",""],["שקדים משובבים","",""],
+  ];
+
+  for(const [name,dept] of DATA) await addDoc(colCatalog,{name,dept,createdAt:Date.now()});
+  for(const [item,qty,kg] of WEIGHTS) await addDoc(colWeights,{item,qty,kg,createdAt:Date.now()});
+  for(const [item,price,store] of PRICES) await addDoc(colPrices,{item,price,store,createdAt:Date.now()});
+
+  toast('המאגר נטען!');
+}
+
+loadCurrentUser();
+seedIfEmpty();
+</script>
+</body>
+</html>
