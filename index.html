@@ -466,7 +466,7 @@ header h1 { font-size:1.1rem; font-weight:700; }
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
-import { getFirestore, collection, doc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, getDoc } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
+import { getFirestore, enableIndexedDbPersistence, collection, doc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, getDoc } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey:"AIzaSyBFEIjcVfJqr9FtS5acFIuETJ_dnWlR_Jo",
@@ -479,6 +479,13 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+enableIndexedDbPersistence(db).catch(err=>{
+  if(err.code==='failed-precondition'){
+    console.warn('Offline persistence unavailable: multiple tabs open');
+  } else if(err.code==='unimplemented'){
+    console.warn('Offline persistence not supported in this browser');
+  }
+});
 
 const colCatalog  = collection(db,"catalog");
 const colList     = collection(db,"list");
