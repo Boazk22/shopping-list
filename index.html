@@ -189,8 +189,11 @@ header h1 { font-size:1.1rem; font-weight:700; }
   </div>
   <div id="refBodyWeights">
     <div class="ref-section">
+      <div style="padding:6px 12px;background:var(--grey);border-bottom:1px solid var(--grey-mid);display:flex;justify-content:flex-start;">
+        <button id="wDeleteSelectedBtn" onclick="deleteWeightSelected()" style="display:none;background:var(--red-light);color:var(--red);border:none;border-radius:7px;padding:7px 14px;font-size:.88rem;font-weight:600;cursor:pointer;">🗑 מחק נבחרים</button>
+      </div>
       <table class="ref-table" id="weightsTable">
-        <thead><tr><th>פריט</th><th>כמות יחידות</th><th>משקל (ק"ג)</th><th></th></tr></thead>
+        <thead><tr><th style="width:32px;"></th><th>פריט</th><th>כמות יחידות</th><th>משקל (ק"ג)</th><th></th></tr></thead>
         <tbody id="weightsTbody"></tbody>
       </table>
       <div class="ref-add">
@@ -209,8 +212,11 @@ header h1 { font-size:1.1rem; font-weight:700; }
   </div>
   <div id="refBodyPrices">
     <div class="ref-section">
+      <div style="padding:6px 12px;background:var(--grey);border-bottom:1px solid var(--grey-mid);display:flex;justify-content:flex-start;">
+        <button id="pDeleteSelectedBtn" onclick="deletePriceSelected()" style="display:none;background:var(--red-light);color:var(--red);border:none;border-radius:7px;padding:7px 14px;font-size:.88rem;font-weight:600;cursor:pointer;">🗑 מחק נבחרים</button>
+      </div>
       <table class="ref-table" id="pricesTable">
-        <thead><tr><th>פריט</th><th>מחיר לק"ג</th><th>חנות</th><th></th></tr></thead>
+        <thead><tr><th style="width:32px;"></th><th>פריט</th><th>מחיר לק"ג</th><th>חנות</th><th></th></tr></thead>
         <tbody id="pricesTbody"></tbody>
       </table>
       <div class="ref-add">
@@ -488,23 +494,32 @@ window.switchScreen=function(name,btn){
   document.getElementById('headerTitle').textContent=titles[name];
   document.getElementById('fab').style.display=name==='settings'||name==='reference'?'none':'flex';
   const colBtn=document.getElementById('collapseAllBtn');
-  colBtn.style.display=(name==='list'||name==='catalog')?'block':'none';
+  colBtn.style.display=(name==='list'||name==='catalog'||name==='reference')?'block':'none';
 };
 
 let allCollapsed=false;
 window.toggleCollapseAll=function(){
   allCollapsed=!allCollapsed;
-  const prefix=currentScreen==='catalog'?'cat_':'';
-  const screen=currentScreen==='catalog'?document.getElementById('screenCatalog'):document.getElementById('screenList');
-  const groups=screen.querySelectorAll('.dept-group');
-  groups.forEach(grp=>{
-    const hdr=grp.querySelector('.sec-hdr');
-    grp.classList.toggle('collapsed',allCollapsed);
-    if(hdr) hdr.classList.toggle('collapsed',allCollapsed);
-    const dept=hdr?hdr.querySelector('span')?.textContent?.split(' ')[0]||'':'';
-    const key=(currentScreen==='catalog'?'cat_':'')+dept;
-    collapsedDepts[key]=allCollapsed;
-  });
+  if(currentScreen==='reference'){
+    ['weights','prices'].forEach(key=>{
+      refCollapsed[key]=allCollapsed;
+      const body=document.getElementById('refBody'+cap(key));
+      const hdr=document.getElementById('refHdr'+cap(key));
+      if(body) body.style.display=allCollapsed?'none':'block';
+      if(hdr) hdr.classList.toggle('collapsed',allCollapsed);
+    });
+  } else {
+    const screen=currentScreen==='catalog'?document.getElementById('screenCatalog'):document.getElementById('screenList');
+    const groups=screen.querySelectorAll('.dept-group');
+    groups.forEach(grp=>{
+      const hdr=grp.querySelector('.sec-hdr');
+      grp.classList.toggle('collapsed',allCollapsed);
+      if(hdr) hdr.classList.toggle('collapsed',allCollapsed);
+      const dept=hdr?hdr.querySelector('span')?.textContent?.split(' ')[0]||'':'';
+      const key=(currentScreen==='catalog'?'cat_':'')+dept;
+      collapsedDepts[key]=allCollapsed;
+    });
+  }
   document.getElementById('collapseAllBtn').textContent=allCollapsed?'⇅↓':'⇅';
 };
 function cap(s){return s.charAt(0).toUpperCase()+s.slice(1);}
@@ -974,14 +989,19 @@ window.toggleRefSection=function(key){
 function renderWeights(){
   const tb=document.getElementById('weightsTbody');
   if(!tb)return;
-  tb.innerHTML=weights.map(w=>`
+  const wSel=getWeightSelected();
+  const delBtn=document.getElementById('wDeleteSelectedBtn');
+  if(delBtn) delBtn.style.display=wSel.size?'inline-block':'none';
+  const sorted=[...weights].sort((a,b)=>(a.item||'').localeCompare(b.item||'','he'));
+  tb.innerHTML=sorted.map(w=>`
     <tr id="wrow_${w.id}">
+      <td style="width:32px;text-align:center;"><input type="checkbox" id="wchk_${w.id}" onchange="onWeightCheck()" style="width:18px;height:18px;cursor:pointer;"></td>
       <td>${esc(w.item)}</td>
       <td>${esc(w.qty)}</td>
       <td>${esc(w.kg)}</td>
       <td style="white-space:nowrap;">
         <button onclick="editWeightRow('${w.id}')" style="background:var(--grey);border:none;color:var(--text);cursor:pointer;border-radius:7px;padding:6px 10px;font-size:1rem;margin-left:4px;">✎</button>
-        <button onclick="deleteWeight('${w.id}')" style="background:var(--red-light);border:none;color:var(--red);cursor:pointer;border-radius:7px;padding:6px 10px;font-size:1rem;">✕</button>
+        <button onclick="deleteWeightConfirm('${w.id}')" style="background:var(--red-light);border:none;color:var(--red);cursor:pointer;border-radius:7px;padding:6px 10px;font-size:1rem;">✕</button>
       </td>
     </tr>`).join('');
 }
@@ -1019,18 +1039,47 @@ window.addWeight=async function(){
   document.getElementById('wKg').value='';
 };
 window.deleteWeight=async function(id){await deleteDoc(doc(db,'weights',id));};
+window.deleteWeightConfirm=async function(id){
+  const w=weights.find(x=>x.id===id);
+  if(!w)return;
+  if(!confirm(`למחוק "${w.item}" מטבלת המשקלות?`))return;
+  await deleteDoc(doc(db,'weights',id));
+  toast('נמחק');
+};
+function getWeightSelected(){
+  const sel=new Set();
+  weights.forEach(w=>{const cb=document.getElementById('wchk_'+w.id);if(cb&&cb.checked)sel.add(w.id);});
+  return sel;
+}
+window.onWeightCheck=function(){
+  const sel=getWeightSelected();
+  const btn=document.getElementById('wDeleteSelectedBtn');
+  if(btn) btn.style.display=sel.size?'inline-block':'none';
+};
+window.deleteWeightSelected=async function(){
+  const sel=getWeightSelected();
+  if(!sel.size)return;
+  if(!confirm(`למחוק ${sel.size} פריטים מטבלת המשקלות?`))return;
+  for(const id of sel) await deleteDoc(doc(db,'weights',id));
+  toast(`${sel.size} פריטים נמחקו`);
+};
 
 function renderPrices(){
   const tb=document.getElementById('pricesTbody');
   if(!tb)return;
-  tb.innerHTML=prices.map(p=>`
+  const pSel=getPriceSelected();
+  const pDelBtn=document.getElementById('pDeleteSelectedBtn');
+  if(pDelBtn) pDelBtn.style.display=pSel.size?'inline-block':'none';
+  const sorted=[...prices].sort((a,b)=>(a.item||'').localeCompare(b.item||'','he'));
+  tb.innerHTML=sorted.map(p=>`
     <tr id="prow_${p.id}">
+      <td style="width:32px;text-align:center;"><input type="checkbox" id="pchk_${p.id}" onchange="onPriceCheck()" style="width:18px;height:18px;cursor:pointer;"></td>
       <td>${esc(p.item)}</td>
       <td>${esc(p.price)} ₪</td>
       <td>${esc(p.store||'')}</td>
       <td style="white-space:nowrap;">
         <button onclick="editPriceRow('${p.id}')" style="background:var(--grey);border:none;color:var(--text);cursor:pointer;border-radius:7px;padding:6px 10px;font-size:1rem;margin-left:4px;">✎</button>
-        <button onclick="deletePrice('${p.id}')" style="background:var(--red-light);border:none;color:var(--red);cursor:pointer;border-radius:7px;padding:6px 10px;font-size:1rem;">✕</button>
+        <button onclick="deletePriceConfirm('${p.id}')" style="background:var(--red-light);border:none;color:var(--red);cursor:pointer;border-radius:7px;padding:6px 10px;font-size:1rem;">✕</button>
       </td>
     </tr>`).join('');
 }
@@ -1068,6 +1117,30 @@ window.addPrice=async function(){
   document.getElementById('pStore').value='';
 };
 window.deletePrice=async function(id){await deleteDoc(doc(db,'prices',id));};
+window.deletePriceConfirm=async function(id){
+  const p=prices.find(x=>x.id===id);
+  if(!p)return;
+  if(!confirm(`למחוק "${p.item}" מטבלת המחירים?`))return;
+  await deleteDoc(doc(db,'prices',id));
+  toast('נמחק');
+};
+function getPriceSelected(){
+  const sel=new Set();
+  prices.forEach(p=>{const cb=document.getElementById('pchk_'+p.id);if(cb&&cb.checked)sel.add(p.id);});
+  return sel;
+}
+window.onPriceCheck=function(){
+  const sel=getPriceSelected();
+  const btn=document.getElementById('pDeleteSelectedBtn');
+  if(btn) btn.style.display=sel.size?'inline-block':'none';
+};
+window.deletePriceSelected=async function(){
+  const sel=getPriceSelected();
+  if(!sel.size)return;
+  if(!confirm(`למחוק ${sel.size} פריטים מטבלת המחירים?`))return;
+  for(const id of sel) await deleteDoc(doc(db,'prices',id));
+  toast(`${sel.size} פריטים נמחקו`);
+};
 
 // ── HELPERS ──
 function populateOrdererSelects(selectId,selected){
