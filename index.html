@@ -1008,17 +1008,18 @@ window.chListQty=async function(id,d){
   await updateDoc(doc(db,'list',id),{qty:Math.max(1,(item.qty||1)+d)});
 };
 window.clearDone=async function(){
-  const done=listItems.filter(i=>i.done);
+  const done=[...listItems.filter(i=>i.done)];
   if(!done.length)return;
   if(!confirm(`למחוק ${done.length} פריטים שנלקחו?`))return;
-  for(const i of done)await deleteDoc(doc(db,'list',i.id));
+  await Promise.all(done.map(i=>deleteDoc(doc(db,'list',i.id))));
   toast(`${done.length} פריטים הוסרו`);
 };
 window.clearList=async function(){
-  if(!listItems.length)return;
-  if(!confirm(`למחוק את כל הרשימה (${listItems.length} פריטים)?`))return;
+  const all=[...listItems];
+  if(!all.length)return;
+  if(!confirm(`למחוק את כל הרשימה (${all.length} פריטים)?\nלחץ אישור פעמיים לאישור סופי.`))return;
   if(!confirm('אישור סופי — למחוק הכל?'))return;
-  for(const i of listItems)await deleteDoc(doc(db,'list',i.id));
+  await Promise.all(all.map(i=>deleteDoc(doc(db,'list',i.id))));
   toast('הרשימה נוקתה');
 };
 
