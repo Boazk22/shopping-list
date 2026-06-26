@@ -170,7 +170,10 @@ header h1 { font-size:1.1rem; font-weight:700; }
 <div class="screen active" id="screenList">
   <div class="filter-bar" id="filterBar"></div>
   <div id="suggBar" style="display:none" class="sugg-bar">
-    <div class="sugg-title">⏰ אולי שכחת?</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+      <div class="sugg-title" style="margin-bottom:0;">⏰ אולי שכחת?</div>
+      <button onclick="document.getElementById('suggBar').style.display='none'" style="background:none;border:none;color:var(--amber);cursor:pointer;font-size:1.1rem;padding:0 4px;">✕</button>
+    </div>
     <div class="sugg-chips" id="suggChips"></div>
   </div>
   <div id="listContent"></div>
@@ -258,6 +261,25 @@ header h1 { font-size:1.1rem; font-weight:700; }
     <div class="set-row" onclick="showAddDeptModal()" style="cursor:pointer;color:var(--green)">
       <div class="set-label">+ הוסף מחלקה</div>
     </div>
+  </div>
+
+  <div style="padding:10px 14px 3px;font-size:.7rem;color:var(--grey-dark);text-transform:uppercase;margin-top:8px;">גיבוי ושחזור</div>
+  <div class="set-section">
+    <div class="set-row" onclick="exportBackup()" style="cursor:pointer;color:var(--green)">
+      <div class="set-label-wrap">
+        <div class="set-label">💾 ייצוא גיבוי</div>
+        <div class="set-sub">מוריד קובץ JSON עם כל הנתונים</div>
+      </div>
+      <span>›</span>
+    </div>
+    <div class="set-row" onclick="document.getElementById('importFileInput').click()" style="cursor:pointer;color:var(--amber)">
+      <div class="set-label-wrap">
+        <div class="set-label">📂 ייבוא מגיבוי</div>
+        <div class="set-sub">טוען נתונים מקובץ JSON — לא מוחק נתונים קיימים</div>
+      </div>
+      <span>›</span>
+    </div>
+    <input type="file" id="importFileInput" accept=".json" style="display:none" onchange="importBackup(event)">
   </div>
 </div>
 
@@ -972,6 +994,10 @@ window.saveSettings=async function(){
 function applySettings(){
   const t=document.getElementById('toggleFreq');
   if(t)t.checked=settings.freqSuggestions!==false;
+  if(settings.freqSuggestions===false){
+    const bar=document.getElementById('suggBar');
+    if(bar) bar.style.display='none';
+  }
 }
 
 // ── REFERENCE COLLAPSE ──
@@ -1189,6 +1215,9 @@ async function seedIfEmpty(){
   await setDoc(lockRef,{locked:true,at:Date.now()});
   await new Promise(r=>setTimeout(r,1500));
   if(catalog.length>0){await setDoc(lockRef,{locked:false});return;}
+  // גם אם catalog ריק — לא לגעת בטבלאות העזר אם הן כבר מאוכלסות
+  const seedWeights=weights.length===0;
+  const seedPrices=prices.length===0;
 
   const DATA=[
     // משקאות
@@ -1415,11 +1444,88 @@ async function seedIfEmpty(){
   ];
 
   for(const [name,dept] of DATA) await addDoc(colCatalog,{name,dept,createdAt:Date.now()});
-  for(const [item,qty,kg] of WEIGHTS) await addDoc(colWeights,{item,qty,kg,createdAt:Date.now()});
-  for(const [item,price,store] of PRICES) await addDoc(colPrices,{item,price,store,createdAt:Date.now()});
+  if(seedWeights) for(const [item,qty,kg] of WEIGHTS) await addDoc(colWeights,{item,qty,kg,createdAt:Date.now()});
+  if(seedPrices) for(const [item,price,store] of PRICES) await addDoc(colPrices,{item,price,store,createdAt:Date.now()});
 
   toast('המאגר נטען!');
 }
+
+// ── BACKUP / RESTORE ──
+window.exportBackup=async function(){
+  const now=new Date();
+  const stamp=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  const backup={
+    exportedAt: now.toISOString(),
+    catalog:  catalog.map(({id,...r})=>r),
+    list:     listItems.map(({id,...r})=>r),
+    weights:  weights.map(({id,...r})=>r),
+    prices:   prices.map(({id,...r})=>r),
+    users:    users.map(({id,...r})=>r),
+    settings: settings
+  };
+  const blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`רשימת-קניות-גיבוי-${stamp}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast('✓ גיבוי הורד בהצלחה');
+};
+
+window.importBackup=async function(e){
+  const file=e.target.files[0];
+  e.target.value='';
+  if(!file)return;
+  if(!confirm('ייבוא גיבוי יוסיף נתונים חדשים מהקובץ.\nפריטים שכבר קיימים לא יישכפלו.\nלהמשיך?'))return;
+  let data;
+  try{ data=JSON.parse(await file.text()); }
+  catch{ toast('❌ קובץ לא תקין'); return; }
+
+  let added=0, skipped=0;
+
+  // catalog
+  if(Array.isArray(data.catalog)){
+    const existing=new Set(catalog.map(c=>c.name.trim().toLowerCase()));
+    for(const item of data.catalog){
+      if(!item.name)continue;
+      if(existing.has(item.name.trim().toLowerCase())){skipped++;continue;}
+      await addDoc(colCatalog,{...item,createdAt:Date.now()});
+      added++;
+    }
+  }
+  // weights
+  if(Array.isArray(data.weights)){
+    const existing=new Set(weights.map(w=>w.item.trim().toLowerCase()));
+    for(const item of data.weights){
+      if(!item.item)continue;
+      if(existing.has(item.item.trim().toLowerCase())){skipped++;continue;}
+      await addDoc(colWeights,{...item,createdAt:Date.now()});
+      added++;
+    }
+  }
+  // prices
+  if(Array.isArray(data.prices)){
+    const existing=new Set(prices.map(p=>p.item.trim().toLowerCase()));
+    for(const item of data.prices){
+      if(!item.item)continue;
+      if(existing.has(item.item.trim().toLowerCase())){skipped++;continue;}
+      await addDoc(colPrices,{...item,createdAt:Date.now()});
+      added++;
+    }
+  }
+  // users
+  if(Array.isArray(data.users)){
+    const existing=new Set(users.map(u=>u.name.trim().toLowerCase()));
+    for(const item of data.users){
+      if(!item.name)continue;
+      if(existing.has(item.name.trim().toLowerCase())){skipped++;continue;}
+      await addDoc(colUsers,{...item,createdAt:Date.now()});
+      added++;
+    }
+  }
+
+  toast(`✓ ייבוא הושלם: ${added} נוספו, ${skipped} דולגו`);
+};
 
 loadCurrentUser();
 seedIfEmpty();
