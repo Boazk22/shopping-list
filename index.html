@@ -255,13 +255,6 @@ header h1 { font-size:1.1rem; font-weight:700; }
       </div>
       <label class="toggle"><input type="checkbox" id="toggleFreq" onchange="saveSettings()" checked><div class="ttrack"></div></label>
     </div>
-    <div class="set-row" onclick="showChangePassModal()" style="cursor:pointer">
-      <div class="set-label-wrap">
-        <div class="set-label">קוד מנהל</div>
-        <div class="set-sub" id="passStatus">טוען...</div>
-      </div>
-      <span>›</span>
-    </div>
     <div class="set-row" onclick="showAddDeptModal()" style="cursor:pointer;color:var(--green)">
       <div class="set-label">+ הוסף מחלקה</div>
     </div>
@@ -328,16 +321,46 @@ header h1 { font-size:1.1rem; font-weight:700; }
   <div class="modal">
     <h3>מי אתה?</h3>
     <div id="userList"></div>
-    <div style="margin-top:14px;border-top:1px solid var(--grey-mid);padding-top:14px;">
-      <div style="font-size:.83rem;color:var(--grey-dark);margin-bottom:7px;">משתמש חדש:</div>
-      <div style="display:flex;gap:7px;">
-        <input type="text" id="newUserName" placeholder="שם..." style="flex:1;padding:8px 11px;border:1.5px solid var(--grey-mid);border-radius:9px;font-size:.93rem;direction:rtl;outline:none;">
-        <select id="newUserRole" style="padding:8px;border:1.5px solid var(--grey-mid);border-radius:9px;font-size:.88rem;">
-          <option value="member">חבר</option>
-          <option value="admin">מנהל</option>
-        </select>
-      </div>
-      <button class="btn btn-primary" style="width:100%;margin-top:9px;" onclick="addUser()">הוסף</button>
+  </div>
+</div>
+
+<!-- PIN entry -->
+<div class="overlay" id="overlayPin">
+  <div class="modal">
+    <h3 id="pinTitle">הזן קוד PIN</h3>
+    <div class="mrow">
+      <input type="password" id="pinInput" placeholder="קוד PIN..." maxlength="8"
+        style="text-align:center;font-size:1.4rem;letter-spacing:6px;"
+        oninput="this.value=this.value.replace(/[^0-9]/g,'')"
+        onkeydown="if(event.key==='Enter')confirmPin()">
+    </div>
+    <div id="pinError" style="color:var(--red);font-size:.83rem;text-align:center;margin-top:-6px;margin-bottom:8px;display:none;">קוד שגוי</div>
+    <div class="mactions">
+      <button class="btn btn-secondary" onclick="closeModal('overlayPin');openModal('overlayUser')">חזור</button>
+      <button class="btn btn-primary" onclick="confirmPin()">כניסה</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add user (admin only) -->
+<div class="overlay" id="overlayAddUser">
+  <div class="modal">
+    <h3>הוסף משתמש</h3>
+    <div class="mrow"><label>שם</label><input type="text" id="newUserName" placeholder="שם המשתמש..."></div>
+    <div class="mrow"><label>תפקיד</label>
+      <select id="newUserRole">
+        <option value="partner">שותף</option>
+        <option value="guest">אורח</option>
+        <option value="admin">מנהל</option>
+      </select>
+    </div>
+    <div class="mrow"><label>קוד PIN</label>
+      <input type="password" id="newUserPin" placeholder="4-8 ספרות..." maxlength="8"
+        oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+    </div>
+    <div class="mactions">
+      <button class="btn btn-secondary" onclick="closeModal('overlayAddUser')">ביטול</button>
+      <button class="btn btn-primary" onclick="addUser()">הוסף</button>
     </div>
   </div>
 </div>
@@ -392,6 +415,10 @@ header h1 { font-size:1.1rem; font-weight:700; }
     <h3 id="editCatTitle">ערוך פריט במאגר</h3>
     <div class="mrow"><label>שם הפריט</label><input type="text" id="ecName"></div>
     <div class="mrow"><label>מחלקה</label><select id="ecDept"></select></div>
+    <div class="mrow" id="ecVisibleRow">
+      <label>חשוף לאורחים</label>
+      <div id="ecGuestList" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;"></div>
+    </div>
     <div class="mactions">
       <button class="btn btn-danger" onclick="deleteCatItem()">מחק ממאגר</button>
       <button class="btn btn-secondary" onclick="closeModal('overlayEditCat')">ביטול</button>
@@ -512,17 +539,33 @@ onSnapshot(docSettings, snap=>{
 // ── CURRENT USER ──
 function loadCurrentUser(){
   const s=localStorage.getItem('shopping_user');
-  if(s){ currentUser=JSON.parse(s); renderUserBadge(); }
-  else setTimeout(()=>showUserPicker(),700);
+  if(s){
+    const saved=JSON.parse(s);
+    // רענן מהנתונים העדכניים ב-Firestore (תפקיד יכול להשתנות)
+    const fresh=users.find(u=>u.id===saved.id);
+    currentUser=fresh||saved;
+    renderUserBadge();
+  } else {
+    setTimeout(()=>showUserPicker(),700);
+  }
 }
 
 function renderUserBadge(){
-  document.getElementById('userBadge').textContent=currentUser?currentUser.name:'בחר משתמש';
+  const rl={admin:'👑',partner:'🤝',guest:'👤'};
+  const icon=currentUser?rl[currentUser.role]||'':'';
+  document.getElementById('userBadge').textContent=currentUser?`${icon} ${currentUser.name}`:'בחר משתמש';
+  // הסתר/הצג כפתור הגדרות לאורח
+  const navSettings=document.getElementById('navSettings');
+  if(navSettings) navSettings.style.display=currentUser?.role==='guest'?'none':'flex';
   renderFilterBar();
 }
 
 // ── SCREENS ──
 window.switchScreen=function(name,btn){
+  // אורח לא יכול להיכנס להגדרות
+  if(name==='settings'&&currentUser?.role==='guest'){
+    toast('❌ אין גישה להגדרות');return;
+  }
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('screen'+cap(name)).classList.add('active');
@@ -607,7 +650,10 @@ function renderList(){
     document.getElementById('filterBar').innerHTML='';
     return;
   }
-  let items=filterOrderer==='all'?listItems:listItems.filter(i=>i.orderer===filterOrderer);
+  // אורח רואה רק פריטים שלו
+  let items=currentUser?.role==='guest'
+    ?listItems.filter(i=>i.addedBy===currentUser.id||i.orderer===currentUser.name)
+    :(filterOrderer==='all'?listItems:listItems.filter(i=>i.orderer===filterOrderer));
   if(filterPending) items=items.filter(i=>!i.done);
   const deptOrder=settings.deptOrder||DEFAULT_DEPTS();
   items.sort((a,b)=>{
@@ -650,7 +696,7 @@ function renderList(){
           <span class="qty-num">${item.qty||1}</span>
           <button class="qty-btn" onclick="event.stopPropagation();chListQty('${item.id}',1)">+</button>
         </div>
-        <button class="icon-btn" onclick="event.stopPropagation();openEditList('${item.id}')">✎</button>
+        ${currentUser?.role!=='guest'||item.addedBy===currentUser?.id?`<button class="icon-btn" onclick="event.stopPropagation();openEditList('${item.id}')">✎</button>`:''}
       </div>`;
     });
     html+='</div>';
@@ -714,10 +760,16 @@ window.quickAdd=function(name){
 };
 
 // ── RENDER CATALOG ──
+function canSeeCatalogItem(item){
+  if(!currentUser||currentUser.role==='admin'||currentUser.role==='partner') return true;
+  // אורח — רק פריטים שחשופים לו
+  const vt=item.visibleTo||['partners'];
+  return vt.includes('partners')||vt.includes(currentUser.id);
+}
 window.renderCatalog=function(){
   const el=document.getElementById('catContent');
   const q=document.getElementById('catSearch')?.value.toLowerCase()||'';
-  let items=catalog.filter(c=>!q||c.name.toLowerCase().includes(q)||c.dept.toLowerCase().includes(q));
+  let items=catalog.filter(c=>canSeeCatalogItem(c)&&(!q||c.name.toLowerCase().includes(q)||c.dept.toLowerCase().includes(q)));
   const deptOrder=settings.deptOrder||DEFAULT_DEPTS();
   items.sort((a,b)=>{
     const ai=deptOrder.indexOf(a.dept),bi=deptOrder.indexOf(b.dept);
@@ -828,7 +880,7 @@ window.confirmAddList=async function(){
   const name=t.dataset.name, dept=t.dataset.dept;
   const orderer=document.getElementById('mOrderer').value||(currentUser?.name||'אורח');
   const note=document.getElementById('mNote').value.trim();
-  await addDoc(colList,{catalogId:mItemId||null,name,dept,orderer,qty:mQty,note,done:false,createdAt:Date.now()});
+  await addDoc(colList,{catalogId:mItemId||null,name,dept,orderer,qty:mQty,note,done:false,createdAt:Date.now(),addedBy:currentUser?.id||null});
   await updateHistory(name);
   closeModal('overlayAddList');
   toast(`✓ "${name}" נוסף לרשימה`);
@@ -868,6 +920,10 @@ window.confirmEditList=async function(){
   closeModal('overlayEditList');
 };
 window.deleteListItem=async function(){
+  const item=listItems.find(i=>i.id===eListId);
+  if(currentUser?.role==='guest'&&item?.addedBy!==currentUser?.id){
+    toast('❌ לא ניתן למחוק פריט של אחר');return;
+  }
   await deleteDoc(doc(db,'list',eListId));
   closeModal('overlayEditList'); toast('פריט הוסר');
 };
@@ -876,16 +932,45 @@ window.deleteListItem=async function(){
 window.openEditCat=function(id){
   const item=catalog.find(c=>c.id===id);
   if(!item)return;
+  // אורח — רק אם הפריט שלו וב"ללא מחלקה"
+  if(currentUser?.role==='guest'){
+    if(item.addedBy!==currentUser.id){toast('❌ לא ניתן לערוך פריט זה');return;}
+    if(item.dept!=='ללא מחלקה'){toast('❌ הפריט סווג ונעול לעריכה');return;}
+  }
   eCatId=id;
   document.getElementById('editCatTitle').textContent=`ערוך: ${item.name}`;
   document.getElementById('ecName').value=item.name;
   populateDeptSelect('ecDept',item.dept);
+  // חשיפה לאורחים — רק מנהל רואה
+  const visRow=document.getElementById('ecVisibleRow');
+  const isAdmin=currentUser?.role==='admin';
+  visRow.style.display=isAdmin?'block':'none';
+  if(isAdmin){
+    const guests=users.filter(u=>u.role==='guest');
+    const vt=item.visibleTo||['partners'];
+    document.getElementById('ecGuestList').innerHTML=guests.length
+      ?guests.map(g=>`
+        <label style="display:flex;align-items:center;gap:5px;font-size:.88rem;cursor:pointer;">
+          <input type="checkbox" id="ecg_${g.id}" ${vt.includes(g.id)?'checked':''} style="width:18px;height:18px;">
+          ${esc(g.name)}
+        </label>`).join('')
+      :`<span style="font-size:.83rem;color:var(--grey-dark);">אין אורחים מוגדרים</span>`;
+  }
   openModal('overlayEditCat');
 };
 window.confirmEditCat=async function(){
+  const item=catalog.find(c=>c.id===eCatId);
+  const isAdmin=currentUser?.role==='admin';
+  let visibleTo=item?.visibleTo||['partners'];
+  if(isAdmin){
+    const guests=users.filter(u=>u.role==='guest');
+    const checked=guests.filter(g=>document.getElementById('ecg_'+g.id)?.checked).map(g=>g.id);
+    visibleTo=['partners',...checked];
+  }
   await updateDoc(doc(db,'catalog',eCatId),{
     name:document.getElementById('ecName').value.trim(),
-    dept:document.getElementById('ecDept').value
+    dept:document.getElementById('ecDept').value,
+    visibleTo
   });
   closeModal('overlayEditCat'); toast('פריט עודכן');
 };
@@ -905,12 +990,16 @@ window.confirmAddCat=async function(){
   const name=document.getElementById('newCatName').value.trim();
   const dept=document.getElementById('newCatDept').value;
   if(!name)return;
-  await addDoc(colCatalog,{name,dept,createdAt:Date.now()});
+  const isGuest=currentUser?.role==='guest';
+  const visibleTo=isGuest?['partners',currentUser.id]:['partners'];
+  const addedBy=currentUser?.id||null;
+  await addDoc(colCatalog,{name,dept,createdAt:Date.now(),visibleTo,addedBy});
   closeModal('overlayAddCat'); toast(`"${name}" נוסף למאגר`);
 };
 
 // ── TOGGLE DONE ──
 window.toggleDone=async function(id,current){
+  if(currentUser?.role==='guest'){toast('❌ אורח אינו יכול לסמן נלקח');return;}
   await updateDoc(doc(db,'list',id),{done:!current,doneAt:!current?Date.now():null});
 };
 window.chListQty=async function(id,d){
@@ -956,7 +1045,11 @@ async function updateHistory(name){
 window.showUserPicker=function(){renderUserList();openModal('overlayUser');};
 function renderUserList(){
   const el=document.getElementById('userList');
-  if(!users.length){el.innerHTML=`<div style="color:var(--grey-dark);font-size:.83rem;margin-bottom:7px;">אין משתמשים עדיין.</div>`;return;}
+  if(!users.length){
+    el.innerHTML=`<div style="color:var(--grey-dark);font-size:.83rem;margin-bottom:7px;">אין משתמשים עדיין. פנה למנהל.</div>`;
+    return;
+  }
+  const roleLabel={admin:'מנהל',partner:'שותף',guest:'אורח'};
   el.innerHTML=users.map(u=>`
     <div class="item-row" onclick="selectUser('${u.id}')" style="cursor:pointer;${currentUser?.id===u.id?'background:var(--green-light);':''}">
       <div class="circle-check" style="${currentUser?.id===u.id?'background:var(--green);border-color:var(--green);color:white;':''}">
@@ -964,48 +1057,52 @@ function renderUserList(){
       </div>
       <div class="item-main">
         <div class="item-name">${esc(u.name)}</div>
-        <div class="item-meta">${u.role==='admin'?'מנהל':'חבר'}</div>
+        <div class="item-meta">${roleLabel[u.role]||u.role}</div>
       </div>
     </div>`).join('');
 }
+
+let pendingUserId=null;
 window.selectUser=function(id){
   const u=users.find(x=>x.id===id);
   if(!u)return;
-  if(u.role==='admin'){
-    const storedPass=settings.adminPass||'';
-    if(storedPass){
-      const pass=prompt(`כניסה כמנהל "${u.name}" — הזן סיסמה:`);
-      if(pass===null)return;
-      if(pass!==storedPass){toast('❌ סיסמה שגויה');return;}
-    }
+  // אם כבר מחובר כאותו משתמש — סגור
+  if(currentUser?.id===id){closeModal('overlayUser');return;}
+  pendingUserId=id;
+  document.getElementById('pinTitle').textContent=`שלום ${u.name}, הזן קוד PIN`;
+  document.getElementById('pinInput').value='';
+  document.getElementById('pinError').style.display='none';
+  closeModal('overlayUser');
+  openModal('overlayPin');
+};
+window.confirmPin=function(){
+  const u=users.find(x=>x.id===pendingUserId);
+  if(!u)return;
+  const entered=document.getElementById('pinInput').value;
+  if(entered!==String(u.pin||'')){
+    document.getElementById('pinError').style.display='block';
+    document.getElementById('pinInput').value='';
+    return;
   }
   currentUser=u;
   localStorage.setItem('shopping_user',JSON.stringify(u));
-  closeModal('overlayUser');
+  closeModal('overlayPin');
   renderUserBadge();
+  renderList();
+  renderCatalog();
   toast(`שלום, ${u.name}!`);
 };
 window.addUser=async function(){
   const name=document.getElementById('newUserName').value.trim();
   const role=document.getElementById('newUserRole').value;
-  if(!name)return;
-  if(role==='admin'){
-    const storedPass=settings.adminPass||'';
-    if(storedPass){
-      const pass=prompt('יצירת מנהל — הזן את קוד המנהל:');
-      if(pass===null)return;
-      if(pass!==storedPass){toast('❌ קוד שגוי — לא ניתן ליצור מנהל');return;}
-    }
-  }
-  const ref=await addDoc(colUsers,{name,role,createdAt:Date.now()});
+  const pin=document.getElementById('newUserPin').value.trim();
+  if(!name){toast('חסר שם');return;}
+  if(!pin||pin.length<4){toast('PIN חייב להיות לפחות 4 ספרות');return;}
+  await addDoc(colUsers,{name,role,pin,createdAt:Date.now()});
   document.getElementById('newUserName').value='';
-  if(!currentUser){
-    currentUser={id:ref.id,name,role};
-    localStorage.setItem('shopping_user',JSON.stringify(currentUser));
-    closeModal('overlayUser');
-    renderUserBadge();
-    toast(`שלום, ${name}!`);
-  }else renderUserList();
+  document.getElementById('newUserPin').value='';
+  closeModal('overlayAddUser');
+  toast(`משתמש "${name}" נוסף`);
 };
 
 // ── SETTINGS ──
@@ -1041,20 +1138,53 @@ window.confirmChangePass=async function(){
   renderSettings();
   toast('✓ קוד מנהל עודכן');
 };
+const roleLabel={admin:'מנהל',partner:'שותף',guest:'אורח'};
 function renderUsersSection(){
   const el=document.getElementById('usersSection');
   if(!el)return;
+  const isAdmin=currentUser?.role==='admin';
   if(!users.length){el.innerHTML=`<div class="set-row">אין משתמשים</div>`;return;}
   el.innerHTML=users.map(u=>`
     <div class="set-row">
       <div class="set-label-wrap">
         <div class="set-label">${esc(u.name)}</div>
-        <div class="set-sub">${u.role==='admin'?'מנהל':'חבר'}</div>
+        <div class="set-sub" style="display:flex;align-items:center;gap:6px;">
+          ${isAdmin?`<select onchange="changeUserRole('${u.id}',this.value)" style="border:1px solid var(--grey-mid);border-radius:6px;padding:2px 5px;font-size:.78rem;">
+            <option value="admin" ${u.role==='admin'?'selected':''}>מנהל</option>
+            <option value="partner" ${u.role==='partner'?'selected':''}>שותף</option>
+            <option value="guest" ${u.role==='guest'?'selected':''}>אורח</option>
+          </select>`:roleLabel[u.role]||u.role}
+        </div>
       </div>
-      <button onclick="deleteUser('${u.id}')" style="background:none;border:none;color:var(--grey-dark);cursor:pointer;font-size:1rem;">✕</button>
+      ${isAdmin?`
+        <button onclick="resetUserPin('${u.id}','${esc(u.name)}')" style="background:var(--grey);border:none;border-radius:7px;padding:5px 9px;font-size:.8rem;cursor:pointer;margin-left:4px;">PIN</button>
+        <button onclick="deleteUser('${u.id}')" style="background:var(--red-light);border:none;border-radius:7px;padding:5px 9px;color:var(--red);cursor:pointer;font-size:.9rem;">✕</button>
+      `:''}
     </div>`).join('');
+  if(isAdmin){
+    el.innerHTML+=`<div class="set-row" onclick="openModal('overlayAddUser')" style="cursor:pointer;color:var(--green);">
+      <div class="set-label">+ הוסף משתמש</div>
+    </div>`;
+  }
 }
+window.changeUserRole=async function(id,role){
+  await updateDoc(doc(db,'users',id),{role});
+  // עדכון localStorage אם זה המשתמש הנוכחי
+  if(currentUser?.id===id){
+    currentUser={...currentUser,role};
+    localStorage.setItem('shopping_user',JSON.stringify(currentUser));
+  }
+  toast('תפקיד עודכן');
+};
+window.resetUserPin=async function(id,name){
+  const newPin=prompt(`PIN חדש למשתמש "${name}" (4-8 ספרות):`);
+  if(newPin===null)return;
+  if(!/^\d{4,8}$/.test(newPin)){toast('❌ PIN לא תקין');return;}
+  await updateDoc(doc(db,'users',id),{pin:newPin});
+  toast(`PIN של "${name}" עודכן`);
+};
 window.deleteUser=async function(id){
+  if(id===currentUser?.id){toast('❌ לא ניתן למחוק את עצמך');return;}
   if(!confirm('למחוק משתמש?'))return;
   await deleteDoc(doc(db,'users',id));
 };
@@ -1115,11 +1245,11 @@ window.deleteDept=async function(i){
   const name=order[i];
   const itemCount=catalog.filter(c=>c.dept===name).length;
   if(itemCount>0){
-    if(!confirm(`למחלקה "${name}" יש ${itemCount} פריטים במאגר.\nהם יועברו ל"שונות". להמשיך?`))return;
+    if(!confirm(`למחלקה "${name}" יש ${itemCount} פריטים במאגר.\nהם יועברו ל"ללא מחלקה". להמשיך?`))return;
     for(const c of catalog.filter(c=>c.dept===name))
-      await updateDoc(doc(db,'catalog',c.id),{dept:'שונות'});
+      await updateDoc(doc(db,'catalog',c.id),{dept:'ללא מחלקה'});
     for(const li of listItems.filter(li=>li.dept===name))
-      await updateDoc(doc(db,'list',li.id),{dept:'שונות'});
+      await updateDoc(doc(db,'list',li.id),{dept:'ללא מחלקה'});
   } else {
     if(!confirm(`למחוק את המחלקה "${name}"?`))return;
   }
