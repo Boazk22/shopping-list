@@ -685,7 +685,11 @@ window.confirmAddList=async function(){
 
 window.removeFromList=async function(catId,name){
   const toRemove=listItems.filter(li=>!li.done&&(li.catalogId===catId||li.name===name));
-  for(const li of toRemove) await deleteDoc(doc(db,'list',li.id));
+  for(const li of toRemove){
+    listItems=listItems.filter(i=>i.id!==li.id);
+    await deleteDoc(doc(db,'list',li.id));
+  }
+  renderCatalog();
   toast(`"${name}" הוסר מהרשימה`);
 };
 
@@ -954,18 +958,19 @@ function renderWeights(){
       </td>
     </tr>`).join('');
 }
+window.renderWeightsPublic=renderWeights;
 window.editWeightRow=function(id){
   const w=weights.find(x=>x.id===id);
   if(!w)return;
   const tr=document.getElementById('wrow_'+id);
   if(!tr)return;
   tr.innerHTML=`
-    <td><input id="we_item_${id}" value="${esc(w.item)}" style="width:100%;border:1px solid var(--grey-mid);border-radius:5px;padding:3px 6px;font-size:.85rem;direction:rtl;"></td>
-    <td><input id="we_qty_${id}" value="${esc(w.qty)}" style="width:60px;border:1px solid var(--grey-mid);border-radius:5px;padding:3px 6px;font-size:.85rem;"></td>
-    <td><input id="we_kg_${id}" value="${esc(w.kg)}" style="width:55px;border:1px solid var(--grey-mid);border-radius:5px;padding:3px 6px;font-size:.85rem;"></td>
+    <td><input id="we_item_${id}" value="${esc(w.item)}" style="width:100%;border:1px solid var(--grey-mid);border-radius:7px;padding:6px 8px;font-size:.93rem;direction:rtl;"></td>
+    <td><input id="we_qty_${id}" value="${esc(w.qty)}" style="width:60px;border:1px solid var(--grey-mid);border-radius:7px;padding:6px 6px;font-size:.93rem;"></td>
+    <td><input id="we_kg_${id}" value="${esc(w.kg)}" style="width:55px;border:1px solid var(--grey-mid);border-radius:7px;padding:6px 6px;font-size:.93rem;"></td>
     <td style="white-space:nowrap;">
-      <button onclick="saveWeightRow('${id}')" style="background:var(--green);color:white;border:none;border-radius:5px;padding:3px 8px;cursor:pointer;font-size:.8rem;">✓</button>
-      <button onclick="renderWeights()" style="background:none;border:none;color:var(--grey-dark);cursor:pointer;font-size:.9rem;">✕</button>
+      <button onclick="saveWeightRow('${id}')" style="background:var(--green);color:white;border:none;border-radius:7px;padding:7px 12px;cursor:pointer;font-size:.93rem;margin-left:4px;">✓</button>
+      <button onclick="window.renderWeightsPublic()" style="background:var(--grey);border:none;color:var(--text);border-radius:7px;padding:7px 10px;cursor:pointer;font-size:.93rem;">✕</button>
     </td>`;
 };
 window.saveWeightRow=async function(id){
@@ -1002,18 +1007,19 @@ function renderPrices(){
       </td>
     </tr>`).join('');
 }
+window.renderPricesPublic=renderPrices;
 window.editPriceRow=function(id){
   const p=prices.find(x=>x.id===id);
   if(!p)return;
   const tr=document.getElementById('prow_'+id);
   if(!tr)return;
   tr.innerHTML=`
-    <td><input id="pe_item_${id}" value="${esc(p.item)}" style="width:100%;border:1px solid var(--grey-mid);border-radius:5px;padding:3px 6px;font-size:.85rem;direction:rtl;"></td>
-    <td><input id="pe_price_${id}" value="${esc(p.price)}" style="width:65px;border:1px solid var(--grey-mid);border-radius:5px;padding:3px 6px;font-size:.85rem;"></td>
-    <td><input id="pe_store_${id}" value="${esc(p.store||'')}" style="width:75px;border:1px solid var(--grey-mid);border-radius:5px;padding:3px 6px;font-size:.85rem;direction:rtl;"></td>
+    <td><input id="pe_item_${id}" value="${esc(p.item)}" style="width:100%;border:1px solid var(--grey-mid);border-radius:7px;padding:6px 8px;font-size:.93rem;direction:rtl;"></td>
+    <td><input id="pe_price_${id}" value="${esc(p.price)}" style="width:65px;border:1px solid var(--grey-mid);border-radius:7px;padding:6px 6px;font-size:.93rem;"></td>
+    <td><input id="pe_store_${id}" value="${esc(p.store||'')}" style="width:75px;border:1px solid var(--grey-mid);border-radius:7px;padding:6px 6px;font-size:.93rem;direction:rtl;"></td>
     <td style="white-space:nowrap;">
-      <button onclick="savePriceRow('${id}')" style="background:var(--green);color:white;border:none;border-radius:5px;padding:3px 8px;cursor:pointer;font-size:.8rem;">✓</button>
-      <button onclick="renderPrices()" style="background:none;border:none;color:var(--grey-dark);cursor:pointer;font-size:.9rem;">✕</button>
+      <button onclick="savePriceRow('${id}')" style="background:var(--green);color:white;border:none;border-radius:7px;padding:7px 12px;cursor:pointer;font-size:.93rem;margin-left:4px;">✓</button>
+      <button onclick="window.renderPricesPublic()" style="background:var(--grey);border:none;color:var(--text);border-radius:7px;padding:7px 10px;cursor:pointer;font-size:.93rem;">✕</button>
     </td>`;
 };
 window.savePriceRow=async function(id){
