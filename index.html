@@ -161,6 +161,7 @@ header h1 { font-size:1.1rem; font-weight:700; }
 <header>
   <h1 id="headerTitle">🛒 רשימת קניות</h1>
   <div style="display:flex;align-items:center;gap:8px;">
+    <button id="catEditModeBtn" onclick="enterCatSelectMode()" style="display:none;background:rgba(255,255,255,0.2);border:none;color:white;border-radius:16px;padding:4px 10px;font-size:0.75rem;cursor:pointer;" title="מצב עריכה">✏️</button>
     <button id="collapseAllBtn" onclick="toggleCollapseAll()" style="display:none;background:rgba(255,255,255,0.2);border:none;color:white;border-radius:16px;padding:4px 10px;font-size:0.75rem;cursor:pointer;" title="קפל/פתח הכל">⇅</button>
     <span class="user-badge" onclick="showUserPicker()" id="userBadge">...</span>
   </div>
@@ -181,10 +182,11 @@ header h1 { font-size:1.1rem; font-weight:700; }
 
 <div class="screen" id="screenCatalog">
   <div class="cat-search"><input type="text" id="catSearch" placeholder="חיפוש פריט..." oninput="renderCatalog()" autocomplete="off"></div>
-  <div id="catSelectBar" style="display:none;background:var(--amber-light);border-bottom:1px solid #f9a825;padding:7px 13px;display:none;align-items:center;gap:8px;flex-wrap:wrap;">
-    <span id="catSelectCount" style="font-size:.85rem;color:var(--amber);font-weight:700;flex:1;">0 נבחרו</span>
-    <button onclick="moveDeptSelected()" style="background:var(--green);color:white;border:none;border-radius:7px;padding:7px 14px;font-size:.88rem;font-weight:600;cursor:pointer;">↔ העבר למחלקה</button>
-    <button onclick="exitCatSelectMode()" style="background:var(--grey);border:none;border-radius:7px;padding:7px 12px;font-size:.88rem;cursor:pointer;">ביטול</button>
+  <div id="catSelectBar" style="display:none;background:var(--amber-light);border-bottom:1px solid #f9a825;padding:8px 13px;align-items:center;gap:8px;flex-wrap:wrap;">
+    <span id="catSelectCount" style="font-size:.88rem;color:var(--amber);font-weight:700;flex:1;">0 נבחרו</span>
+    <button id="catActionMove" onclick="moveDeptSelected()" style="display:none;background:var(--green);color:white;border:none;border-radius:7px;padding:7px 12px;font-size:.85rem;font-weight:600;cursor:pointer;">↔ העבר</button>
+    <button id="catActionDelete" onclick="deleteCatSelected()" style="display:none;background:var(--red-light);color:var(--red);border:none;border-radius:7px;padding:7px 12px;font-size:.85rem;font-weight:600;cursor:pointer;">🗑 מחק</button>
+    <button onclick="exitCatSelectMode()" style="background:var(--grey);border:none;border-radius:7px;padding:7px 12px;font-size:.85rem;cursor:pointer;">ביטול</button>
   </div>
   <div id="catContent"></div>
 </div>
@@ -531,6 +533,9 @@ window.switchScreen=function(name,btn){
   document.getElementById('fab').style.display=name==='settings'||name==='reference'?'none':'flex';
   const colBtn=document.getElementById('collapseAllBtn');
   colBtn.style.display=(name==='list'||name==='catalog'||name==='reference')?'block':'none';
+  const editBtn=document.getElementById('catEditModeBtn');
+  editBtn.style.display=(name==='catalog')?'block':'none';
+  if(name!=='catalog'&&catSelectMode) exitCatSelectMode();
 };
 
 let allCollapsed=false;
@@ -582,7 +587,11 @@ window.exitCatSelectMode=function(){
   renderCatalog();
 };
 function updateCatSelectCount(){
-  document.getElementById('catSelectCount').textContent=`${catSelected.size} נבחרו`;
+  const n=catSelected.size;
+  document.getElementById('catSelectCount').textContent=n?`${n} נבחרו`:'בחר פריטים';
+  const show=n>0?'inline-block':'none';
+  document.getElementById('catActionMove').style.display=show;
+  document.getElementById('catActionDelete').style.display=show;
 }
 window.toggleCatSelect=function(id){
   if(catSelected.has(id)) catSelected.delete(id);
@@ -716,6 +725,8 @@ window.renderCatalog=function(){
     return a.name.localeCompare(b.name,'he');
   });
   const groups={};
+  // מחלקות ריקות מה-deptOrder גם מופיעות (לאפשר הוספת פריטים)
+  (settings.deptOrder||DEFAULT_DEPTS()).forEach(d=>{ if(!groups[d]) groups[d]=[]; });
   items.forEach(item=>{const d=item.dept||'שונות';if(!groups[d])groups[d]=[];groups[d].push(item);});
 
   let html='';
@@ -726,7 +737,7 @@ window.renderCatalog=function(){
       const collapsed=collapsedDepts[key]?'collapsed':'';
       const selectAllBtn=catSelectMode
         ?`<button onclick="event.stopPropagation();selectAllInDept('${esc(dept)}')" style="background:none;border:none;font-size:.75rem;color:var(--green);cursor:pointer;padding:2px 6px;">בחר הכל</button>`
-        :`<button onclick="event.stopPropagation();enterCatSelectMode()" style="background:none;border:none;font-size:.75rem;color:var(--grey-dark);cursor:pointer;padding:2px 6px;">בחר</button>`;
+        :'';
       html+=`<div class="dept-group ${collapsed}">
         <div class="sec-hdr ${collapsed}" onclick="toggleCatDept(this)">
           <span>${esc(dept)} <span style="color:var(--grey-dark);font-weight:normal">(${groups[dept].length})</span>${selectAllBtn}</span>
@@ -775,6 +786,13 @@ window.moveDeptSelected=function(){
   document.getElementById('moveDeptTitle').textContent=`העבר ${catSelected.size} פריטים למחלקה`;
   populateDeptSelect('moveDeptSelect');
   openModal('overlayMoveDept');
+};
+window.deleteCatSelected=async function(){
+  if(!catSelected.size){toast('לא נבחרו פריטים');return;}
+  if(!confirm(`למחוק ${catSelected.size} פריטים מהמאגר?`))return;
+  for(const id of catSelected) await deleteDoc(doc(db,'catalog',id));
+  toast(`${catSelected.size} פריטים נמחקו מהמאגר`);
+  exitCatSelectMode();
 };
 window.confirmMoveDept=async function(){
   const targetDept=document.getElementById('moveDeptSelect').value;
