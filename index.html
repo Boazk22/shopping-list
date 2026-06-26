@@ -32,8 +32,8 @@ header h1 { font-size:1.1rem; font-weight:700; }
 .screen.active { display:block; }
 
 /* SECTION HEADERS */
-.sec-hdr { padding:9px 14px 3px; font-size:0.7rem; color:var(--grey-dark); text-transform:uppercase; letter-spacing:.4px; display:flex; align-items:center; justify-content:space-between; cursor:pointer; user-select:none; }
-.sec-hdr .toggle-icon { font-size:0.8rem; transition:transform .2s; }
+.sec-hdr { padding:9px 14px 5px; font-size:0.88rem; color:var(--grey-dark); font-weight:600; display:flex; align-items:center; justify-content:space-between; cursor:pointer; user-select:none; }
+.sec-hdr .toggle-icon { font-size:0.9rem; transition:transform .2s; }
 .sec-hdr.collapsed .toggle-icon { transform:rotate(-90deg); }
 
 /* ITEM ROWS */
@@ -103,6 +103,10 @@ header h1 { font-size:1.1rem; font-weight:700; }
 .cat-badge { background:var(--green); color:white; border-radius:10px; padding:1px 7px; font-size:.72rem; font-weight:700; }
 
 /* REFERENCE SCREEN */
+.ref-collapse-hdr { display:flex; align-items:center; justify-content:space-between; padding:11px 15px; background:var(--green-light); border-top:2px solid var(--green-mid); border-bottom:1px solid var(--green-mid); font-size:0.95rem; font-weight:700; color:var(--green); cursor:pointer; user-select:none; }
+.ref-collapse-hdr .toggle-icon { font-size:0.9rem; transition:transform .2s; }
+.ref-collapse-hdr.collapsed .toggle-icon { transform:rotate(-90deg); }
+.ref-table td button { font-size:1rem; padding:6px 10px; min-width:34px; min-height:34px; }
 
 /* SETTINGS */
 .set-section { background:white; margin:0; border-top:1px solid var(--grey-mid); border-bottom:1px solid var(--grey-mid); }
@@ -178,31 +182,43 @@ header h1 { font-size:1.1rem; font-weight:700; }
 </div>
 
 <div class="screen" id="screenReference">
-  <div style="padding:10px 14px 3px;font-size:.7rem;color:var(--grey-dark);text-transform:uppercase;">טבלת משקלות</div>
-  <div class="ref-section">
-    <table class="ref-table" id="weightsTable">
-      <thead><tr><th>פריט</th><th>כמות יחידות</th><th>משקל (ק"ג)</th><th></th></tr></thead>
-      <tbody id="weightsTbody"></tbody>
-    </table>
-    <div class="ref-add">
-      <input type="text" id="wItem" placeholder="פריט">
-      <input type="text" id="wQty" placeholder='כמות' style="max-width:70px">
-      <input type="text" id="wKg" placeholder="ק״ג" style="max-width:60px">
-      <button onclick="addWeight()">+</button>
+  <!-- משקלות -->
+  <div class="ref-collapse-hdr" onclick="toggleRefSection('weights')" id="refHdrWeights">
+    <span>⚖️ טבלת משקלות</span>
+    <span class="toggle-icon" id="refIconWeights">▾</span>
+  </div>
+  <div id="refBodyWeights">
+    <div class="ref-section">
+      <table class="ref-table" id="weightsTable">
+        <thead><tr><th>פריט</th><th>כמות יחידות</th><th>משקל (ק"ג)</th><th></th></tr></thead>
+        <tbody id="weightsTbody"></tbody>
+      </table>
+      <div class="ref-add">
+        <input type="text" id="wItem" placeholder="פריט">
+        <input type="text" id="wQty" placeholder='כמות' style="max-width:70px">
+        <input type="text" id="wKg" placeholder="ק״ג" style="max-width:60px">
+        <button onclick="addWeight()">+</button>
+      </div>
     </div>
   </div>
 
-  <div style="padding:10px 14px 3px;font-size:.7rem;color:var(--grey-dark);text-transform:uppercase;margin-top:8px;">מחירי תבלינים (לק"ג)</div>
-  <div class="ref-section">
-    <table class="ref-table" id="pricesTable">
-      <thead><tr><th>פריט</th><th>מחיר לק"ג</th><th>חנות</th><th></th></tr></thead>
-      <tbody id="pricesTbody"></tbody>
-    </table>
-    <div class="ref-add">
-      <input type="text" id="pItem" placeholder="תבלין">
-      <input type="text" id="pPrice" placeholder="מחיר" style="max-width:70px">
-      <input type="text" id="pStore" placeholder="חנות" style="max-width:80px">
-      <button onclick="addPrice()">+</button>
+  <!-- מחירים -->
+  <div class="ref-collapse-hdr" onclick="toggleRefSection('prices')" id="refHdrPrices" style="margin-top:4px;">
+    <span>💰 מחירי תבלינים (לק"ג)</span>
+    <span class="toggle-icon" id="refIconPrices">▾</span>
+  </div>
+  <div id="refBodyPrices">
+    <div class="ref-section">
+      <table class="ref-table" id="pricesTable">
+        <thead><tr><th>פריט</th><th>מחיר לק"ג</th><th>חנות</th><th></th></tr></thead>
+        <tbody id="pricesTbody"></tbody>
+      </table>
+      <div class="ref-add">
+        <input type="text" id="pItem" placeholder="תבלין">
+        <input type="text" id="pPrice" placeholder="מחיר" style="max-width:70px">
+        <input type="text" id="pStore" placeholder="חנות" style="max-width:80px">
+        <button onclick="addPrice()">+</button>
+      </div>
     </div>
   </div>
 </div>
@@ -943,6 +959,17 @@ function applySettings(){
   if(t)t.checked=settings.freqSuggestions!==false;
 }
 
+// ── REFERENCE COLLAPSE ──
+const refCollapsed={weights:false, prices:false};
+window.toggleRefSection=function(key){
+  refCollapsed[key]=!refCollapsed[key];
+  const body=document.getElementById('refBody'+cap(key));
+  const hdr=document.getElementById('refHdr'+cap(key));
+  const icon=document.getElementById('refIcon'+cap(key));
+  body.style.display=refCollapsed[key]?'none':'block';
+  hdr.classList.toggle('collapsed',refCollapsed[key]);
+};
+
 // ── REFERENCE ──
 function renderWeights(){
   const tb=document.getElementById('weightsTbody');
@@ -953,8 +980,8 @@ function renderWeights(){
       <td>${esc(w.qty)}</td>
       <td>${esc(w.kg)}</td>
       <td style="white-space:nowrap;">
-        <button onclick="editWeightRow('${w.id}')" style="background:none;border:none;color:var(--grey-dark);cursor:pointer;margin-left:4px;">✎</button>
-        <button onclick="deleteWeight('${w.id}')" style="background:none;border:none;color:var(--grey-dark);cursor:pointer;">✕</button>
+        <button onclick="editWeightRow('${w.id}')" style="background:var(--grey);border:none;color:var(--text);cursor:pointer;border-radius:7px;padding:6px 10px;font-size:1rem;margin-left:4px;">✎</button>
+        <button onclick="deleteWeight('${w.id}')" style="background:var(--red-light);border:none;color:var(--red);cursor:pointer;border-radius:7px;padding:6px 10px;font-size:1rem;">✕</button>
       </td>
     </tr>`).join('');
 }
@@ -1002,8 +1029,8 @@ function renderPrices(){
       <td>${esc(p.price)} ₪</td>
       <td>${esc(p.store||'')}</td>
       <td style="white-space:nowrap;">
-        <button onclick="editPriceRow('${p.id}')" style="background:none;border:none;color:var(--grey-dark);cursor:pointer;margin-left:4px;">✎</button>
-        <button onclick="deletePrice('${p.id}')" style="background:none;border:none;color:var(--grey-dark);cursor:pointer;">✕</button>
+        <button onclick="editPriceRow('${p.id}')" style="background:var(--grey);border:none;color:var(--text);cursor:pointer;border-radius:7px;padding:6px 10px;font-size:1rem;margin-left:4px;">✎</button>
+        <button onclick="deletePrice('${p.id}')" style="background:var(--red-light);border:none;color:var(--red);cursor:pointer;border-radius:7px;padding:6px 10px;font-size:1rem;">✕</button>
       </td>
     </tr>`).join('');
 }
