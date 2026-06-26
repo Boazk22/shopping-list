@@ -156,7 +156,10 @@ header h1 { font-size:1.1rem; font-weight:700; }
 
 <header>
   <h1 id="headerTitle">🛒 רשימת קניות</h1>
-  <span class="user-badge" onclick="showUserPicker()" id="userBadge">...</span>
+  <div style="display:flex;align-items:center;gap:8px;">
+    <button id="collapseAllBtn" onclick="toggleCollapseAll()" style="display:none;background:rgba(255,255,255,0.2);border:none;color:white;border-radius:16px;padding:4px 10px;font-size:0.75rem;cursor:pointer;" title="קפל/פתח הכל">⇅</button>
+    <span class="user-badge" onclick="showUserPicker()" id="userBadge">...</span>
+  </div>
 </header>
 
 <!-- SCREENS -->
@@ -400,7 +403,7 @@ const docSettings = doc(db,"settings","main");
 
 let catalog=[], listItems=[], users=[], history={}, weights=[], prices=[];
 let settings={ deptOrder:DEFAULT_DEPTS(), freqSuggestions:true, adminPass:'' };
-let currentUser=null, currentScreen='list', filterOrderer='all';
+let currentUser=null, currentScreen='list', filterOrderer='all', filterPending=false;
 let mItemId=null, mQty=1, eListId=null, eQty=1, eCatId=null;
 let collapsedDepts={};
 
@@ -468,6 +471,25 @@ window.switchScreen=function(name,btn){
   const titles={list:'🛒 רשימת קניות',catalog:'📦 מאגר פריטים',reference:'📋 מידע עזר',settings:'⚙️ הגדרות'};
   document.getElementById('headerTitle').textContent=titles[name];
   document.getElementById('fab').style.display=name==='settings'||name==='reference'?'none':'flex';
+  const colBtn=document.getElementById('collapseAllBtn');
+  colBtn.style.display=(name==='list'||name==='catalog')?'block':'none';
+};
+
+let allCollapsed=false;
+window.toggleCollapseAll=function(){
+  allCollapsed=!allCollapsed;
+  const prefix=currentScreen==='catalog'?'cat_':'';
+  const screen=currentScreen==='catalog'?document.getElementById('screenCatalog'):document.getElementById('screenList');
+  const groups=screen.querySelectorAll('.dept-group');
+  groups.forEach(grp=>{
+    const hdr=grp.querySelector('.sec-hdr');
+    grp.classList.toggle('collapsed',allCollapsed);
+    if(hdr) hdr.classList.toggle('collapsed',allCollapsed);
+    const dept=hdr?hdr.querySelector('span')?.textContent?.split(' ')[0]||'':'';
+    const key=(currentScreen==='catalog'?'cat_':'')+dept;
+    collapsedDepts[key]=allCollapsed;
+  });
+  document.getElementById('collapseAllBtn').textContent=allCollapsed?'⇅↓':'⇅';
 };
 function cap(s){return s.charAt(0).toUpperCase()+s.slice(1);}
 
@@ -485,6 +507,7 @@ function renderList(){
     return;
   }
   let items=filterOrderer==='all'?listItems:listItems.filter(i=>i.orderer===filterOrderer);
+  if(filterPending) items=items.filter(i=>!i.done);
   const deptOrder=settings.deptOrder||DEFAULT_DEPTS();
   items.sort((a,b)=>{
     const ai=deptOrder.indexOf(a.dept), bi=deptOrder.indexOf(b.dept);
@@ -548,12 +571,15 @@ function renderFilterBar(){
   const el=document.getElementById('filterBar');
   if(!listItems.length){el.innerHTML='';return;}
   const orderers=[...new Set(listItems.map(i=>i.orderer).filter(Boolean))];
-  if(orderers.length<2){el.innerHTML='';return;}
-  let html=`<div class="fchip ${filterOrderer==='all'?'active':''}" onclick="setFilter('all')">הכל</div>`;
-  orderers.forEach(o=>{html+=`<div class="fchip ${filterOrderer===o?'active':''}" onclick="setFilter('${esc(o)}')">${esc(o)}</div>`;});
+  let html=`<div class="fchip ${filterPending?'active':''}" onclick="togglePendingFilter()" title="הצג רק טרם נלקחו">⏳ טרם נלקחו</div>`;
+  if(orderers.length>=2){
+    html+=`<div class="fchip ${filterOrderer==='all'?'active':''}" onclick="setFilter('all')">הכל</div>`;
+    orderers.forEach(o=>{html+=`<div class="fchip ${filterOrderer===o?'active':''}" onclick="setFilter('${esc(o)}')">${esc(o)}</div>`;});
+  }
   el.innerHTML=html;
 }
 window.setFilter=function(v){filterOrderer=v;renderList();};
+window.togglePendingFilter=function(){filterPending=!filterPending;renderList();};
 
 // ── SUGGESTIONS ──
 function renderSugg(){
@@ -610,12 +636,15 @@ window.renderCatalog=function(){
         const totalQty=inList.reduce((s,li)=>s+(li.qty||1),0);
         const inListClass=inList.length?'in-list':'';
         const badge=inList.length?`<span class="cat-badge">${totalQty}</span>`:'';
+        const actionBtn=inList.length
+          ?`<button class="cat-add" style="background:var(--red-light);color:var(--red)" onclick="removeFromList('${item.id}','${esc(item.name)}')">✕ הסר</button>`
+          :`<button class="cat-add" onclick="openAddListModal('${item.id}','${esc(item.name)}','${esc(item.dept)}')">+ לרשימה</button>`;
         html+=`<div class="cat-item ${inListClass}">
           <div class="item-main">
             <div class="cat-item-name">${esc(item.name)} ${badge}</div>
           </div>
           <button class="icon-btn" style="color:var(--grey-dark)" onclick="openEditCat('${item.id}')">✎</button>
-          <button class="cat-add" onclick="openAddListModal('${item.id}','${esc(item.name)}','${esc(item.dept)}')">+ לרשימה</button>
+          ${actionBtn}
         </div>`;
       });
       html+='</div>';
@@ -652,6 +681,12 @@ window.confirmAddList=async function(){
   closeModal('overlayAddList');
   toast(`✓ "${name}" נוסף לרשימה`);
   renderCatalog();
+};
+
+window.removeFromList=async function(catId,name){
+  const toRemove=listItems.filter(li=>!li.done&&(li.catalogId===catId||li.name===name));
+  for(const li of toRemove) await deleteDoc(doc(db,'list',li.id));
+  toast(`"${name}" הוסר מהרשימה`);
 };
 
 // ── EDIT LIST ITEM ──
@@ -909,13 +944,38 @@ function renderWeights(){
   const tb=document.getElementById('weightsTbody');
   if(!tb)return;
   tb.innerHTML=weights.map(w=>`
-    <tr>
+    <tr id="wrow_${w.id}">
       <td>${esc(w.item)}</td>
       <td>${esc(w.qty)}</td>
       <td>${esc(w.kg)}</td>
-      <td><button onclick="deleteWeight('${w.id}')" style="background:none;border:none;color:var(--grey-dark);cursor:pointer;">✕</button></td>
+      <td style="white-space:nowrap;">
+        <button onclick="editWeightRow('${w.id}')" style="background:none;border:none;color:var(--grey-dark);cursor:pointer;margin-left:4px;">✎</button>
+        <button onclick="deleteWeight('${w.id}')" style="background:none;border:none;color:var(--grey-dark);cursor:pointer;">✕</button>
+      </td>
     </tr>`).join('');
 }
+window.editWeightRow=function(id){
+  const w=weights.find(x=>x.id===id);
+  if(!w)return;
+  const tr=document.getElementById('wrow_'+id);
+  if(!tr)return;
+  tr.innerHTML=`
+    <td><input id="we_item_${id}" value="${esc(w.item)}" style="width:100%;border:1px solid var(--grey-mid);border-radius:5px;padding:3px 6px;font-size:.85rem;direction:rtl;"></td>
+    <td><input id="we_qty_${id}" value="${esc(w.qty)}" style="width:60px;border:1px solid var(--grey-mid);border-radius:5px;padding:3px 6px;font-size:.85rem;"></td>
+    <td><input id="we_kg_${id}" value="${esc(w.kg)}" style="width:55px;border:1px solid var(--grey-mid);border-radius:5px;padding:3px 6px;font-size:.85rem;"></td>
+    <td style="white-space:nowrap;">
+      <button onclick="saveWeightRow('${id}')" style="background:var(--green);color:white;border:none;border-radius:5px;padding:3px 8px;cursor:pointer;font-size:.8rem;">✓</button>
+      <button onclick="renderWeights()" style="background:none;border:none;color:var(--grey-dark);cursor:pointer;font-size:.9rem;">✕</button>
+    </td>`;
+};
+window.saveWeightRow=async function(id){
+  const item=document.getElementById('we_item_'+id).value.trim();
+  const qty=document.getElementById('we_qty_'+id).value.trim();
+  const kg=document.getElementById('we_kg_'+id).value.trim();
+  if(!item)return;
+  await updateDoc(doc(db,'weights',id),{item,qty,kg});
+  toast('עודכן');
+};
 window.addWeight=async function(){
   const item=document.getElementById('wItem').value.trim();
   const qty=document.getElementById('wQty').value.trim();
@@ -932,13 +992,38 @@ function renderPrices(){
   const tb=document.getElementById('pricesTbody');
   if(!tb)return;
   tb.innerHTML=prices.map(p=>`
-    <tr>
+    <tr id="prow_${p.id}">
       <td>${esc(p.item)}</td>
       <td>${esc(p.price)} ₪</td>
       <td>${esc(p.store||'')}</td>
-      <td><button onclick="deletePrice('${p.id}')" style="background:none;border:none;color:var(--grey-dark);cursor:pointer;">✕</button></td>
+      <td style="white-space:nowrap;">
+        <button onclick="editPriceRow('${p.id}')" style="background:none;border:none;color:var(--grey-dark);cursor:pointer;margin-left:4px;">✎</button>
+        <button onclick="deletePrice('${p.id}')" style="background:none;border:none;color:var(--grey-dark);cursor:pointer;">✕</button>
+      </td>
     </tr>`).join('');
 }
+window.editPriceRow=function(id){
+  const p=prices.find(x=>x.id===id);
+  if(!p)return;
+  const tr=document.getElementById('prow_'+id);
+  if(!tr)return;
+  tr.innerHTML=`
+    <td><input id="pe_item_${id}" value="${esc(p.item)}" style="width:100%;border:1px solid var(--grey-mid);border-radius:5px;padding:3px 6px;font-size:.85rem;direction:rtl;"></td>
+    <td><input id="pe_price_${id}" value="${esc(p.price)}" style="width:65px;border:1px solid var(--grey-mid);border-radius:5px;padding:3px 6px;font-size:.85rem;"></td>
+    <td><input id="pe_store_${id}" value="${esc(p.store||'')}" style="width:75px;border:1px solid var(--grey-mid);border-radius:5px;padding:3px 6px;font-size:.85rem;direction:rtl;"></td>
+    <td style="white-space:nowrap;">
+      <button onclick="savePriceRow('${id}')" style="background:var(--green);color:white;border:none;border-radius:5px;padding:3px 8px;cursor:pointer;font-size:.8rem;">✓</button>
+      <button onclick="renderPrices()" style="background:none;border:none;color:var(--grey-dark);cursor:pointer;font-size:.9rem;">✕</button>
+    </td>`;
+};
+window.savePriceRow=async function(id){
+  const item=document.getElementById('pe_item_'+id).value.trim();
+  const price=document.getElementById('pe_price_'+id).value.trim();
+  const store=document.getElementById('pe_store_'+id).value.trim();
+  if(!item)return;
+  await updateDoc(doc(db,'prices',id),{item,price,store});
+  toast('עודכן');
+};
 window.addPrice=async function(){
   const item=document.getElementById('pItem').value.trim();
   const price=document.getElementById('pPrice').value.trim();
