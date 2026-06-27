@@ -710,12 +710,13 @@ function renderList(){
     });
     html+='</div>';
   }
+  const isGuest=currentUser?.role==='guest';
   const doneCount=items.filter(i=>i.done).length;
   const totalCount=listItems.length;
-  if(doneCount>0||totalCount>0){
+  if(!isGuest&&(doneCount>0||totalCount>0)){
     html+=`<div style="display:flex;gap:8px;padding:9px 13px;">`;
     if(doneCount>0) html+=`<button class="clear-done" style="margin:0;flex:1" onclick="clearDone()">🗑 נקה נלקחו (${doneCount})</button>`;
-    if(totalCount>0&&currentUser?.role!=='guest') html+=`<button class="clear-done" style="margin:0;flex:1;background:var(--red);color:white;border-color:var(--red)" onclick="clearList()">🗑 נקה הכל (${totalCount})</button>`;
+    if(totalCount>0) html+=`<button class="clear-done" style="margin:0;flex:1;background:var(--red);color:white;border-color:var(--red)" onclick="clearList()">🗑 נקה הכל (${totalCount})</button>`;
     html+=`</div>`;
   }
   el.innerHTML=html;
