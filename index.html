@@ -400,7 +400,7 @@ header h1 { font-size:1.1rem; font-weight:700; }
       </div>
     </div>
     <div class="mrow"><label>מזמין</label><select id="eOrderer"></select></div>
-    <div class="mrow"><label>מחלקה</label><select id="eDept"></select></div>
+    <div class="mrow" id="eDeptRow"><label>מחלקה</label><select id="eDept"></select></div>
     <div class="mrow"><label>הערה</label><input type="text" id="eNote" placeholder="הערה..."></div>
     <div class="mactions">
       <button class="btn btn-danger" onclick="deleteListItem()">מחק</button>
@@ -715,7 +715,7 @@ function renderList(){
   if(doneCount>0||totalCount>0){
     html+=`<div style="display:flex;gap:8px;padding:9px 13px;">`;
     if(doneCount>0) html+=`<button class="clear-done" style="margin:0;flex:1" onclick="clearDone()">🗑 נקה נלקחו (${doneCount})</button>`;
-    if(totalCount>0) html+=`<button class="clear-done" style="margin:0;flex:1;background:var(--red);color:white;border-color:var(--red)" onclick="clearList()">🗑 נקה הכל (${totalCount})</button>`;
+    if(totalCount>0&&currentUser?.role!=='guest') html+=`<button class="clear-done" style="margin:0;flex:1;background:var(--red);color:white;border-color:var(--red)" onclick="clearList()">🗑 נקה הכל (${totalCount})</button>`;
     html+=`</div>`;
   }
   el.innerHTML=html;
@@ -916,17 +916,25 @@ window.openEditList=function(id){
   document.getElementById('eQtyVal').textContent=eQty;
   document.getElementById('eNote').value=item.note||'';
   populateOrdererSelects('eOrderer',item.orderer);
-  populateDeptSelect('eDept',item.dept);
+  // אורח לא יכול לשנות מחלקה
+  const deptRow=document.getElementById('eDeptRow');
+  const isGuest=currentUser?.role==='guest';
+  if(deptRow) deptRow.style.display=isGuest?'none':'block';
+  if(!isGuest) populateDeptSelect('eDept',item.dept);
   openModal('overlayEditList');
 };
 window.eQtyChange=function(d){eQty=Math.max(1,eQty+d);document.getElementById('eQtyVal').textContent=eQty;};
 window.confirmEditList=async function(){
-  await updateDoc(doc(db,'list',eListId),{
+  const isGuest=currentUser?.role==='guest';
+  const item=listItems.find(i=>i.id===eListId);
+  const updates={
     qty:eQty,
     note:document.getElementById('eNote').value.trim(),
     orderer:document.getElementById('eOrderer').value,
-    dept:document.getElementById('eDept').value
-  });
+  };
+  // אורח לא יכול לשנות מחלקה
+  if(!isGuest) updates.dept=document.getElementById('eDept').value;
+  await updateDoc(doc(db,'list',eListId),updates);
   closeModal('overlayEditList');
 };
 window.deleteListItem=async function(){
@@ -1022,8 +1030,9 @@ window.chListQty=async function(id,d){
   await updateDoc(doc(db,'list',id),{qty:Math.max(1,(item.qty||1)+d)});
 };
 window.clearDone=async function(){
-  const done=[...listItems.filter(i=>i.done)];
-  if(!done.length)return;
+  let done=[...listItems.filter(i=>i.done)];
+  if(currentUser?.role==='guest') done=done.filter(i=>i.addedBy===currentUser.id);
+  if(!done.length){toast('אין פריטים שלך לנקות');return;}
   if(!confirm(`למחוק ${done.length} פריטים שנלקחו?`))return;
   await Promise.all(done.map(i=>deleteDoc(doc(db,'list',i.id))));
   toast(`${done.length} פריטים הוסרו`);
