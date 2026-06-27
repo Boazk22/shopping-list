@@ -415,7 +415,7 @@ header h1 { font-size:1.1rem; font-weight:700; }
   <div class="modal">
     <h3 id="editCatTitle">ערוך פריט במאגר</h3>
     <div class="mrow"><label>שם הפריט</label><input type="text" id="ecName"></div>
-    <div class="mrow"><label>מחלקה</label><select id="ecDept"></select></div>
+    <div class="mrow" id="ecDeptRow"><label>מחלקה</label><select id="ecDept"></select></div>
     <div class="mrow" id="ecVisibleRow">
       <label>חשוף לאורחים</label>
       <div id="ecGuestList" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;"></div>
@@ -806,7 +806,13 @@ window.renderCatalog=function(){
           <span class="toggle-icon">▾</span>
         </div>`;
       groups[dept].forEach(item=>{
-        const inList=listItems.filter(li=>!li.done&&(li.catalogId===item.id||li.name===item.name));
+        // מנהל/שותף/שותף חלקי רואים רק פריטים שלהם ושל שותפים; אורח — רק שלו
+        const relevantRoles=['admin','partner','partial_partner'];
+        const inList=listItems.filter(li=>!li.done&&(li.catalogId===item.id||li.name===item.name)&&(
+          currentUser?.role==='guest'
+            ?li.addedBy===currentUser.id
+            :relevantRoles.includes(users.find(u=>u.id===li.addedBy)?.role||'partner')
+        ));
         const totalQty=inList.reduce((s,li)=>s+(li.qty||1),0);
         const inListClass=inList.length?'in-list':'';
         const badge=inList.length?`<span class="cat-badge">${totalQty}</span>`:'';
@@ -958,7 +964,11 @@ window.openEditCat=function(id){
   eCatId=id;
   document.getElementById('editCatTitle').textContent=`ערוך: ${item.name}`;
   document.getElementById('ecName').value=item.name;
-  populateDeptSelect('ecDept',item.dept);
+  // אורח לא יכול לשנות מחלקה
+  const isGuest=currentUser?.role==='guest';
+  const ecDeptRow=document.getElementById('ecDeptRow');
+  if(ecDeptRow) ecDeptRow.style.display=isGuest?'none':'block';
+  if(!isGuest) populateDeptSelect('ecDept',item.dept);
   // חשיפה לאורחים — רק מנהל רואה
   const visRow=document.getElementById('ecVisibleRow');
   const isAdmin=currentUser?.role==='admin';
@@ -985,11 +995,10 @@ window.confirmEditCat=async function(){
     const checked=guests.filter(g=>document.getElementById('ecg_'+g.id)?.checked).map(g=>g.id);
     visibleTo=['partners',...checked];
   }
-  await updateDoc(doc(db,'catalog',eCatId),{
-    name:document.getElementById('ecName').value.trim(),
-    dept:document.getElementById('ecDept').value,
-    visibleTo
-  });
+  const updates={name:document.getElementById('ecName').value.trim(),visibleTo};
+  // אורח לא יכול לשנות מחלקה
+  if(currentUser?.role!=='guest') updates.dept=document.getElementById('ecDept').value;
+  await updateDoc(doc(db,'catalog',eCatId),updates);
   closeModal('overlayEditCat'); toast('פריט עודכן');
 };
 window.deleteCatItem=async function(){
