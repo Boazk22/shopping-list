@@ -705,7 +705,7 @@ function renderList(){
           <span class="qty-num">${item.qty||1}</span>
           <button class="qty-btn" onclick="event.stopPropagation();chListQty('${item.id}',1)">+</button>
         </div>
-        ${currentUser?.role!=='guest'||item.addedBy===currentUser?.id?`<button class="icon-btn" onclick="event.stopPropagation();openEditList('${item.id}')">✎</button>`:''}
+        ${currentUser?.role!=='guest'||(item.addedBy===currentUser?.id&&!item.done)?`<button class="icon-btn" onclick="event.stopPropagation();openEditList('${item.id}')">✎</button>`:''}
       </div>`;
     });
     html+='</div>';
@@ -945,8 +945,8 @@ window.confirmEditList=async function(){
 };
 window.deleteListItem=async function(){
   const item=listItems.find(i=>i.id===eListId);
-  if(currentUser?.role==='guest'&&item?.addedBy!==currentUser?.id){
-    toast('❌ לא ניתן למחוק פריט של אחר');return;
+  if(currentUser?.role==='guest'&&(item?.addedBy!==currentUser?.id||item?.done)){
+    toast('❌ לא ניתן למחוק פריט זה');return;
   }
   await deleteDoc(doc(db,'list',eListId));
   closeModal('overlayEditList'); toast('פריט הוסר');
