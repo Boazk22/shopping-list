@@ -73,7 +73,7 @@ header h1 { font-size:1.1rem; font-weight:700; }
 .fchip.active { background:var(--green-light); border-color:var(--green); color:var(--green); font-weight:700; }
 
 /* FAB */
-.fab { position:fixed; bottom:78px; left:16px; width:50px; height:50px; border-radius:50%; background:var(--green); color:white; border:none; font-size:1.5rem; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(46,125,50,.4); z-index:50; }
+.fab { position:fixed; bottom:78px; left:16px; width:50px; height:50px; border-radius:50%; background:var(--green); color:white; border:none; font-size:1.5rem; cursor:pointer; display:none; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(46,125,50,.4); z-index:50; }
 .fab:active { transform:scale(.92); }
 
 /* MODALS */
@@ -163,6 +163,7 @@ header h1 { font-size:1.1rem; font-weight:700; }
   <div style="display:flex;align-items:center;gap:8px;">
     <button id="catEditModeBtn" onclick="enterCatSelectMode()" style="display:none;background:rgba(255,255,255,0.2);border:none;color:white;border-radius:16px;padding:4px 10px;font-size:0.75rem;cursor:pointer;" title="מצב עריכה">✏️</button>
     <button id="collapseAllBtn" onclick="toggleCollapseAll()" style="display:none;background:rgba(255,255,255,0.2);border:none;color:white;border-radius:16px;padding:4px 10px;font-size:0.75rem;cursor:pointer;" title="קפל/פתח הכל">⇅</button>
+    <button id="fabHeader" onclick="onFab()" style="display:none;background:rgba(255,255,255,0.2);border:none;color:white;border-radius:16px;padding:4px 12px;font-size:1.1rem;cursor:pointer;line-height:1;" title="הוסף פריט">+</button>
     <span class="user-badge" onclick="showUserPicker()" id="userBadge">...</span>
   </div>
 </header>
@@ -582,7 +583,10 @@ window.switchScreen=function(name,btn){
   currentScreen=name;
   const titles={list:'🛒 רשימת קניות',catalog:'📦 מאגר פריטים',reference:'📋 מידע עזר',settings:'⚙️ הגדרות'};
   document.getElementById('headerTitle').textContent=titles[name];
-  document.getElementById('fab').style.display=name==='settings'||name==='reference'?'none':'flex';
+  document.getElementById('fab').style.display='none';
+  const showFab=name==='list'||name==='catalog';
+  const fabHeader=document.getElementById('fabHeader');
+  if(fabHeader) fabHeader.style.display=showFab?'inline-block':'none';
   const colBtn=document.getElementById('collapseAllBtn');
   colBtn.style.display=(name==='list'||name==='catalog'||name==='reference')?'block':'none';
   const editBtn=document.getElementById('catEditModeBtn');
@@ -1845,6 +1849,9 @@ window.importBackup=async function(e){
 
 loadCurrentUser();
 seedIfEmpty();
+// הצג כפתור + ב-header בטעינה (מסך רשימה הוא ברירת המחדל)
+const fabHeaderInit=document.getElementById('fabHeader');
+if(fabHeaderInit) fabHeaderInit.style.display='inline-block';
 </script>
 </body>
 </html>
