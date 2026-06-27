@@ -350,6 +350,7 @@ header h1 { font-size:1.1rem; font-weight:700; }
     <div class="mrow"><label>תפקיד</label>
       <select id="newUserRole">
         <option value="partner">שותף</option>
+        <option value="partial_partner">שותף חלקי</option>
         <option value="guest">אורח</option>
         <option value="admin">מנהל</option>
       </select>
@@ -432,7 +433,7 @@ header h1 { font-size:1.1rem; font-weight:700; }
   <div class="modal">
     <h3>פריט חדש במאגר</h3>
     <div class="mrow"><label>שם הפריט</label><input type="text" id="newCatName" placeholder="שם הפריט..."></div>
-    <div class="mrow"><label>מחלקה</label><select id="newCatDept"></select></div>
+    <div class="mrow" id="newCatDeptRow"><label>מחלקה</label><select id="newCatDept"></select></div>
     <div class="mactions">
       <button class="btn btn-secondary" onclick="closeModal('overlayAddCat')">ביטול</button>
       <button class="btn btn-primary" onclick="confirmAddCat()">הוסף</button>
@@ -558,19 +559,20 @@ function loadCurrentUser(){
 }
 
 function renderUserBadge(){
-  const rl={admin:'👑',partner:'🤝',guest:'👤'};
+  const rl={admin:'👑',partner:'🤝',guest:'👤',partial_partner:'🔓'};
   const icon=currentUser?rl[currentUser.role]||'':'';
   document.getElementById('userBadge').textContent=currentUser?`${icon} ${currentUser.name}`:'בחר משתמש';
   // הסתר/הצג כפתור הגדרות לאורח
   const navSettings=document.getElementById('navSettings');
-  if(navSettings) navSettings.style.display=currentUser?.role==='guest'?'none':'flex';
+  const noSettings=currentUser?.role==='guest'||currentUser?.role==='partial_partner';
+  if(navSettings) navSettings.style.display=noSettings?'none':'flex';
   renderFilterBar();
 }
 
 // ── SCREENS ──
 window.switchScreen=function(name,btn){
-  // אורח לא יכול להיכנס להגדרות
-  if(name==='settings'&&currentUser?.role==='guest'){
+  // אורח ושותף חלקי לא יכולים להיכנס להגדרות
+  if(name==='settings'&&(currentUser?.role==='guest'||currentUser?.role==='partial_partner')){
     toast('❌ אין גישה להגדרות');return;
   }
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
@@ -657,7 +659,7 @@ function renderList(){
     document.getElementById('filterBar').innerHTML='';
     return;
   }
-  // אורח רואה רק פריטים שלו
+  // אורח רואה רק פריטים שלו; שותף חלקי רואה הכל
   let items=currentUser?.role==='guest'
     ?listItems.filter(i=>i.addedBy===currentUser.id||i.orderer===currentUser.name)
     :(filterOrderer==='all'?listItems:listItems.filter(i=>i.orderer===filterOrderer));
@@ -769,9 +771,10 @@ window.quickAdd=function(name){
 // ── RENDER CATALOG ──
 function canSeeCatalogItem(item){
   if(!currentUser||currentUser.role==='admin'||currentUser.role==='partner') return true;
-  // אורח — רק פריטים שחשופים לו
+  if(currentUser.role==='partial_partner') return true; // שותף חלקי — רואה הכל
+  // אורח — רק פריטים שה-ID שלו מופיע ב-visibleTo
   const vt=item.visibleTo||['partners'];
-  return vt.includes('partners')||vt.includes(currentUser.id);
+  return vt.includes(currentUser.id);
 }
 window.renderCatalog=function(){
   const el=document.getElementById('catContent');
@@ -990,14 +993,18 @@ window.deleteCatItem=async function(){
 // ── ADD CATALOG ITEM ──
 window.showAddCatModal=function(){
   document.getElementById('newCatName').value='';
-  populateDeptSelect('newCatDept');
+  const isGuest=currentUser?.role==='guest';
+  const deptRow=document.getElementById('newCatDeptRow');
+  if(deptRow) deptRow.style.display=isGuest?'none':'block';
+  if(!isGuest) populateDeptSelect('newCatDept');
   openModal('overlayAddCat');
 };
 window.confirmAddCat=async function(){
   const name=document.getElementById('newCatName').value.trim();
-  const dept=document.getElementById('newCatDept').value;
   if(!name)return;
   const isGuest=currentUser?.role==='guest';
+  // אורח תמיד מוסיף ל"ללא מחלקה"
+  const dept=isGuest?'ללא מחלקה':document.getElementById('newCatDept').value;
   const visibleTo=isGuest?['partners',currentUser.id]:['partners'];
   const addedBy=currentUser?.id||null;
   await addDoc(colCatalog,{name,dept,createdAt:Date.now(),visibleTo,addedBy});
@@ -1006,7 +1013,7 @@ window.confirmAddCat=async function(){
 
 // ── TOGGLE DONE ──
 window.toggleDone=async function(id,current){
-  if(currentUser?.role==='guest'){toast('❌ אורח אינו יכול לסמן נלקח');return;}
+  if(currentUser?.role==='guest'||currentUser?.role==='partial_partner'){toast('❌ אין הרשאה לסמן נלקח');return;}
   await updateDoc(doc(db,'list',id),{done:!current,doneAt:!current?Date.now():null});
 };
 window.chListQty=async function(id,d){
@@ -1057,7 +1064,7 @@ function renderUserList(){
     el.innerHTML=`<div style="color:var(--grey-dark);font-size:.83rem;margin-bottom:7px;">אין משתמשים עדיין. פנה למנהל.</div>`;
     return;
   }
-  const roleLabel={admin:'מנהל',partner:'שותף',guest:'אורח'};
+  const roleLabel={admin:'מנהל',partner:'שותף',guest:'אורח',partial_partner:'שותף חלקי'};
   el.innerHTML=users.map(u=>`
     <div class="item-row" onclick="selectUser('${u.id}')" style="cursor:pointer;${currentUser?.id===u.id?'background:var(--green-light);':''}">
       <div class="circle-check" style="${currentUser?.id===u.id?'background:var(--green);border-color:var(--green);color:white;':''}">
@@ -1146,7 +1153,7 @@ window.confirmChangePass=async function(){
   renderSettings();
   toast('✓ קוד מנהל עודכן');
 };
-const roleLabel={admin:'מנהל',partner:'שותף',guest:'אורח'};
+const roleLabel={admin:'מנהל',partner:'שותף',guest:'אורח',partial_partner:'שותף חלקי'};
 function renderUsersSection(){
   const el=document.getElementById('usersSection');
   if(!el)return;
@@ -1160,6 +1167,7 @@ function renderUsersSection(){
           ${isAdmin?`<select onchange="changeUserRole('${u.id}',this.value)" style="border:1px solid var(--grey-mid);border-radius:6px;padding:2px 5px;font-size:.78rem;">
             <option value="admin" ${u.role==='admin'?'selected':''}>מנהל</option>
             <option value="partner" ${u.role==='partner'?'selected':''}>שותף</option>
+            <option value="partial_partner" ${u.role==='partial_partner'?'selected':''}>שותף חלקי</option>
             <option value="guest" ${u.role==='guest'?'selected':''}>אורח</option>
           </select>`:roleLabel[u.role]||u.role}
         </div>
