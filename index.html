@@ -316,9 +316,42 @@ header h1 { font-size:1.1rem; font-weight:700; }
       <label>אישור קוד חדש</label>
       <input type="password" id="newPass2" placeholder="חזור על הקוד החדש...">
     </div>
+    <div class="mrow">
+      <label>רמז לקוד (אופציונלי)</label>
+      <input type="text" id="passHint" placeholder="רמז שיזכיר לך את הקוד...">
+    </div>
+    <div class="mrow">
+      <label>שאלת אבטחה לשחזור</label>
+      <input type="text" id="secQuestion" placeholder="לדוגמה: שם החיה הראשונה שלי">
+    </div>
+    <div class="mrow">
+      <label>תשובה לשאלת האבטחה</label>
+      <input type="text" id="secAnswer" placeholder="תשובה (לא תוצג למשתמשים)...">
+    </div>
     <div class="mactions">
       <button class="btn btn-secondary" onclick="closeModal('overlayChangePass')">ביטול</button>
       <button class="btn btn-primary" onclick="confirmChangePass()">שמור קוד</button>
+    </div>
+  </div>
+</div>
+
+<!-- Recover admin password -->
+<div class="overlay" id="overlayRecover">
+  <div class="modal">
+    <h3>שחזור קוד מנהל</h3>
+    <div id="recoverHint" style="font-size:.85rem;color:var(--grey-dark);margin-bottom:10px;display:none;"></div>
+    <div class="mrow">
+      <label id="recoverQuestion" style="font-weight:700;color:var(--text);font-size:.93rem;"></label>
+      <input type="text" id="recoverAnswer" placeholder="תשובה..." style="margin-top:6px;">
+    </div>
+    <div id="recoverError" style="color:var(--red);font-size:.83rem;margin-top:-6px;margin-bottom:6px;display:none;">תשובה שגויה</div>
+    <div class="mrow">
+      <label>קוד מנהל חדש</label>
+      <input type="password" id="recoverNewPass" placeholder="קוד חדש...">
+    </div>
+    <div class="mactions">
+      <button class="btn btn-secondary" onclick="closeModal('overlayRecover')">ביטול</button>
+      <button class="btn btn-primary" onclick="confirmRecover()">אפס קוד</button>
     </div>
   </div>
 </div>
@@ -342,6 +375,9 @@ header h1 { font-size:1.1rem; font-weight:700; }
         onkeydown="if(event.key==='Enter')confirmPin()">
     </div>
     <div id="pinError" style="color:var(--red);font-size:.83rem;text-align:center;margin-top:-6px;margin-bottom:8px;display:none;">קוד שגוי</div>
+    <div id="pinForgotBtn" style="display:none;text-align:center;margin-bottom:8px;">
+      <button onclick="openRecoverModal()" style="background:none;border:none;color:var(--green);font-size:.85rem;cursor:pointer;text-decoration:underline;">שכחתי קוד</button>
+    </div>
     <div class="mactions">
       <button class="btn btn-secondary" onclick="closeModal('overlayPin');openModal('overlayUser')">חזור</button>
       <button class="btn btn-primary" onclick="confirmPin()">כניסה</button>
@@ -1225,7 +1261,7 @@ function renderUserList(){
     </div>`).join('');
 }
 
-let pendingUserId=null;
+let pendingUserId=null, pinFailCount=0;
 window.selectUser=function(id){
   const u=users.find(x=>x.id===id);
   if(!u)return;
@@ -1235,6 +1271,8 @@ window.selectUser=function(id){
   document.getElementById('pinTitle').textContent=`שלום ${u.name}, הזן קוד PIN`;
   document.getElementById('pinInput').value='';
   document.getElementById('pinError').style.display='none';
+  document.getElementById('pinForgotBtn').style.display='none';
+  pinFailCount=0;
   closeModal('overlayUser');
   openModal('overlayPin');
 };
@@ -1243,10 +1281,16 @@ window.confirmPin=function(){
   if(!u)return;
   const entered=document.getElementById('pinInput').value;
   if(entered!==String(u.pin||'')){
+    pinFailCount++;
     document.getElementById('pinError').style.display='block';
     document.getElementById('pinInput').value='';
+    // אחרי 3 כשלונות — הצג "שכחתי קוד" אם יש שאלת אבטחה ומדובר במנהל
+    if(pinFailCount>=3 && u.role==='admin' && settings.secQuestion){
+      document.getElementById('pinForgotBtn').style.display='block';
+    }
     return;
   }
+  pinFailCount=0;
   currentUser=u;
   localStorage.setItem('shopping_user',JSON.stringify(u));
   closeModal('overlayPin');
@@ -1284,6 +1328,9 @@ window.showChangePassModal=function(){
   document.getElementById('currPass').value='';
   document.getElementById('newPass').value='';
   document.getElementById('newPass2').value='';
+  document.getElementById('passHint').value=settings.passHint||'';
+  document.getElementById('secQuestion').value=settings.secQuestion||'';
+  document.getElementById('secAnswer').value=settings.secAnswer||'';
   const currRow=document.getElementById('currPassRow');
   currRow.style.display=settings.adminPass?'':'none';
   openModal('overlayChangePass');
@@ -1296,10 +1343,42 @@ window.confirmChangePass=async function(){
   if(!np){toast('❌ הקוד החדש לא יכול להיות ריק');return;}
   if(np!==np2){toast('❌ הקודים לא תואמים');return;}
   settings.adminPass=np;
+  settings.passHint=document.getElementById('passHint').value.trim();
+  settings.secQuestion=document.getElementById('secQuestion').value.trim();
+  settings.secAnswer=document.getElementById('secAnswer').value.trim().toLowerCase();
   await setDoc(docSettings,settings);
   closeModal('overlayChangePass');
   renderSettings();
   toast('✓ קוד מנהל עודכן');
+};
+window.openRecoverModal=function(){
+  if(!settings.secQuestion){toast('לא הוגדרה שאלת אבטחה');return;}
+  document.getElementById('recoverQuestion').textContent=settings.secQuestion;
+  document.getElementById('recoverAnswer').value='';
+  document.getElementById('recoverNewPass').value='';
+  document.getElementById('recoverError').style.display='none';
+  const hintEl=document.getElementById('recoverHint');
+  if(settings.passHint){
+    hintEl.textContent=`רמז: ${settings.passHint}`;
+    hintEl.style.display='block';
+  } else {
+    hintEl.style.display='none';
+  }
+  closeModal('overlayPin');
+  openModal('overlayRecover');
+};
+window.confirmRecover=async function(){
+  const ans=document.getElementById('recoverAnswer').value.trim().toLowerCase();
+  if(ans!==settings.secAnswer){
+    document.getElementById('recoverError').style.display='block';
+    return;
+  }
+  const np=document.getElementById('recoverNewPass').value.trim();
+  if(!np){toast('הזן קוד חדש');return;}
+  settings.adminPass=np;
+  await setDoc(docSettings,settings);
+  closeModal('overlayRecover');
+  toast('✓ קוד מנהל אופס — התחבר מחדש');
 };
 const roleLabel={admin:'מנהל',partner:'שותף',guest:'אורח',partial_partner:'שותף חלקי'};
 function renderUsersSection(){
