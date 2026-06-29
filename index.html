@@ -186,6 +186,7 @@ header h1 { font-size:1.1rem; font-weight:700; }
   <div id="catSelectBar" style="display:none;background:var(--amber-light);border-bottom:1px solid #f9a825;padding:8px 13px;align-items:center;gap:8px;flex-wrap:wrap;">
     <span id="catSelectCount" style="font-size:.88rem;color:var(--amber);font-weight:700;flex:1;">0 נבחרו</span>
     <button id="catActionMove" onclick="moveDeptSelected()" style="display:none;background:var(--green);color:white;border:none;border-radius:7px;padding:7px 12px;font-size:.85rem;font-weight:600;cursor:pointer;">↔ העבר</button>
+    <button id="catActionPerms" onclick="openBulkPermsModal()" style="display:none;background:#6a1b9a;color:white;border:none;border-radius:7px;padding:7px 12px;font-size:.85rem;font-weight:600;cursor:pointer;">👁 הרשאות</button>
     <button id="catActionDelete" onclick="deleteCatSelected()" style="display:none;background:var(--red-light);color:var(--red);border:none;border-radius:7px;padding:7px 12px;font-size:.85rem;font-weight:600;cursor:pointer;">🗑 מחק</button>
     <button onclick="exitCatSelectMode()" style="background:var(--grey);border:none;border-radius:7px;padding:7px 12px;font-size:.85rem;cursor:pointer;">ביטול</button>
   </div>
@@ -454,6 +455,19 @@ header h1 { font-size:1.1rem; font-weight:700; }
   </div>
 </div>
 
+<!-- Bulk permissions -->
+<div class="overlay" id="overlayBulkPerms">
+  <div class="modal">
+    <h3 id="bulkPermsTitle">הרשאות לפריטים נבחרים</h3>
+    <div style="font-size:.83rem;color:var(--grey-dark);margin-bottom:10px;">בחר אורחים שיוכלו לראות את הפריטים הנבחרים:</div>
+    <div id="bulkGuestList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:4px;"></div>
+    <div class="mactions">
+      <button class="btn btn-secondary" onclick="closeModal('overlayBulkPerms')">ביטול</button>
+      <button class="btn btn-primary" onclick="confirmBulkPerms()">החל על כולם</button>
+    </div>
+  </div>
+</div>
+
 <!-- Add dept -->
 <div class="overlay" id="overlayAddDept">
   <div class="modal">
@@ -648,6 +662,9 @@ function updateCatSelectCount(){
   const show=n>0?'inline-block':'none';
   document.getElementById('catActionMove').style.display=show;
   document.getElementById('catActionDelete').style.display=show;
+  // כפתור הרשאות — רק למנהל
+  const permsBtn=document.getElementById('catActionPerms');
+  if(permsBtn) permsBtn.style.display=(n>0&&currentUser?.role==='admin')?'inline-block':'none';
 }
 window.toggleCatSelect=function(id){
   if(catSelected.has(id)) catSelected.delete(id);
@@ -878,6 +895,38 @@ window.confirmMoveDept=async function(){
   exitCatSelectMode();
 };
 
+window.openBulkPermsModal=function(){
+  if(!catSelected.size){toast('לא נבחרו פריטים');return;}
+  if(currentUser?.role!=='admin'){toast('❌ רק מנהל יכול לשנות הרשאות');return;}
+  const guests=users.filter(u=>u.role==='guest');
+  document.getElementById('bulkPermsTitle').textContent=`הרשאות ל-${catSelected.size} פריטים נבחרים`;
+  if(!guests.length){
+    document.getElementById('bulkGuestList').innerHTML=`<span style="font-size:.83rem;color:var(--grey-dark);">אין אורחים מוגדרים</span>`;
+  } else {
+    // חשב מצב מיזוג: אם כל הפריטים הנבחרים חושפים אורח מסוים — מסומן, אחרת לא
+    const selectedItems=catalog.filter(c=>catSelected.has(c.id));
+    document.getElementById('bulkGuestList').innerHTML=guests.map(g=>{
+      const allHave=selectedItems.every(c=>(c.visibleTo||['partners']).includes(g.id));
+      return `<label style="display:flex;align-items:center;gap:8px;font-size:.93rem;cursor:pointer;padding:4px 0;">
+        <input type="checkbox" id="bpg_${g.id}" ${allHave?'checked':''} style="width:20px;height:20px;cursor:pointer;">
+        ${esc(g.name)}
+      </label>`;
+    }).join('');
+  }
+  openModal('overlayBulkPerms');
+};
+window.confirmBulkPerms=async function(){
+  const guests=users.filter(u=>u.role==='guest');
+  const checked=guests.filter(g=>document.getElementById('bpg_'+g.id)?.checked).map(g=>g.id);
+  const visibleTo=['partners',...checked];
+  for(const id of catSelected){
+    await updateDoc(doc(db,'catalog',id),{visibleTo});
+  }
+  toast(`הרשאות עודכנו ל-${catSelected.size} פריטים`);
+  closeModal('overlayBulkPerms');
+  exitCatSelectMode();
+};
+
 window.toggleCatDept=function(hdr){
   const grp=hdr.parentElement;
   const isNowCollapsed=!grp.classList.contains('collapsed');
@@ -1000,10 +1049,25 @@ window.confirmEditCat=async function(){
     const checked=guests.filter(g=>document.getElementById('ecg_'+g.id)?.checked).map(g=>g.id);
     visibleTo=['partners',...checked];
   }
-  const updates={name:document.getElementById('ecName').value.trim(),visibleTo};
+  const newName=document.getElementById('ecName').value.trim();
+  const updates={name:newName,visibleTo};
   // אורח לא יכול לשנות מחלקה
   if(currentUser?.role!=='guest') updates.dept=document.getElementById('ecDept').value;
   await updateDoc(doc(db,'catalog',eCatId),updates);
+  // עדכן פריטי רשימה תואמים אם שם או מחלקה השתנו
+  if(currentUser?.role!=='guest'){
+    const newDept=updates.dept;
+    const oldItem=catalog.find(c=>c.id===eCatId);
+    const oldDept=oldItem?.dept;
+    const oldName=oldItem?.name;
+    const listToUpdate=listItems.filter(li=>li.catalogId===eCatId||(li.name===oldName&&!li.catalogId));
+    for(const li of listToUpdate){
+      const liUpdates={};
+      if(newDept&&newDept!==oldDept) liUpdates.dept=newDept;
+      if(newName&&newName!==oldName) liUpdates.name=newName;
+      if(Object.keys(liUpdates).length) await updateDoc(doc(db,'list',li.id),liUpdates);
+    }
+  }
   closeModal('overlayEditCat'); toast('פריט עודכן');
 };
 window.deleteCatItem=async function(){
