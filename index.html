@@ -840,9 +840,26 @@ window.renderCatalog=function(){
         const badge=inList.length?`<span class="cat-badge">${totalQty}</span>`:'';
         if(catSelectMode){
           const checked=catSelected.has(item.id)?'checked':'';
+          // תצוגת הרשאות קיימות (רק למנהל)
+          let permsBadge='';
+          if(currentUser?.role==='admin'){
+            const vt=item.visibleTo||['partners'];
+            const guestIds=users.filter(u=>u.role==='guest').map(u=>u.id);
+            const allowedGuests=guestIds.filter(gid=>vt.includes(gid));
+            if(guestIds.length===0){
+              permsBadge='';
+            } else if(allowedGuests.length===0){
+              permsBadge=`<span title="חסום לכל האורחים" style="font-size:.7rem;background:#ffebee;color:#c62828;border-radius:10px;padding:1px 6px;margin-right:4px;">🔒 ללא אורחים</span>`;
+            } else if(allowedGuests.length===guestIds.length){
+              permsBadge=`<span title="גלוי לכל האורחים" style="font-size:.7rem;background:#e8f5e9;color:#2e7d32;border-radius:10px;padding:1px 6px;margin-right:4px;">👁 כולם</span>`;
+            } else {
+              const names=allowedGuests.map(gid=>users.find(u=>u.id===gid)?.name||gid).join(', ');
+              permsBadge=`<span title="${esc(names)}" style="font-size:.7rem;background:#f3e5f5;color:#6a1b9a;border-radius:10px;padding:1px 6px;margin-right:4px;">👁 ${allowedGuests.length}/${guestIds.length}</span>`;
+            }
+          }
           html+=`<div class="cat-item ${inListClass}" onclick="toggleCatSelect('${item.id}');document.getElementById('catchk_${item.id}').checked=catSelected.has('${item.id}');updateCatSelectCount()">
             <input type="checkbox" id="catchk_${item.id}" ${checked} onclick="event.stopPropagation();toggleCatSelect('${item.id}');updateCatSelectCount()" style="width:20px;height:20px;cursor:pointer;flex-shrink:0;">
-            <div class="item-main"><div class="cat-item-name">${esc(item.name)} ${badge}</div></div>
+            <div class="item-main"><div class="cat-item-name">${esc(item.name)} ${badge}</div><div style="margin-top:2px;">${permsBadge}</div></div>
           </div>`;
         } else {
           const actionBtn=inList.length
@@ -1057,14 +1074,20 @@ window.confirmEditCat=async function(){
   // עדכן פריטי רשימה תואמים אם שם או מחלקה השתנו
   if(currentUser?.role!=='guest'){
     const newDept=updates.dept;
+    // קרא oldItem לפני שה-listener יעדכן את catalog
     const oldItem=catalog.find(c=>c.id===eCatId);
     const oldDept=oldItem?.dept;
     const oldName=oldItem?.name;
-    const listToUpdate=listItems.filter(li=>li.catalogId===eCatId||(li.name===oldName&&!li.catalogId));
+    // התאמה לפי catalogId, או לפי שם (לפריטים ישנים בלי catalogId)
+    const listToUpdate=listItems.filter(li=>{
+      if(li.catalogId && li.catalogId===eCatId) return true;
+      if(!li.catalogId && oldName && li.name===oldName) return true;
+      return false;
+    });
     for(const li of listToUpdate){
       const liUpdates={};
-      if(newDept&&newDept!==oldDept) liUpdates.dept=newDept;
-      if(newName&&newName!==oldName) liUpdates.name=newName;
+      if(newDept && newDept!==li.dept) liUpdates.dept=newDept;
+      if(newName && newName!==oldName && li.name===oldName) liUpdates.name=newName;
       if(Object.keys(liUpdates).length) await updateDoc(doc(db,'list',li.id),liUpdates);
     }
   }
