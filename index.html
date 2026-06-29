@@ -841,25 +841,27 @@ window.renderCatalog=function(){
         if(catSelectMode){
           const checked=catSelected.has(item.id)?'checked':'';
           // תצוגת הרשאות קיימות (רק למנהל)
-          let permsBadge='';
+          let permsLine='';
           if(currentUser?.role==='admin'){
             const vt=item.visibleTo||['partners'];
-            const guestIds=users.filter(u=>u.role==='guest').map(u=>u.id);
-            const allowedGuests=guestIds.filter(gid=>vt.includes(gid));
-            if(guestIds.length===0){
-              permsBadge='';
-            } else if(allowedGuests.length===0){
-              permsBadge=`<span title="חסום לכל האורחים" style="font-size:.7rem;background:#ffebee;color:#c62828;border-radius:10px;padding:1px 6px;margin-right:4px;">🔒 ללא אורחים</span>`;
-            } else if(allowedGuests.length===guestIds.length){
-              permsBadge=`<span title="גלוי לכל האורחים" style="font-size:.7rem;background:#e8f5e9;color:#2e7d32;border-radius:10px;padding:1px 6px;margin-right:4px;">👁 כולם</span>`;
-            } else {
-              const names=allowedGuests.map(gid=>users.find(u=>u.id===gid)?.name||gid).join(', ');
-              permsBadge=`<span title="${esc(names)}" style="font-size:.7rem;background:#f3e5f5;color:#6a1b9a;border-radius:10px;padding:1px 6px;margin-right:4px;">👁 ${allowedGuests.length}/${guestIds.length}</span>`;
+            const allGuests=users.filter(u=>u.role==='guest');
+            if(allGuests.length>0){
+              const allowed=allGuests.filter(g=>vt.includes(g.id));
+              const blocked=allGuests.filter(g=>!vt.includes(g.id));
+              if(blocked.length===0){
+                permsLine=`<div style="font-size:.72rem;color:#2e7d32;margin-top:2px;">👁 גלוי לכל האורחים</div>`;
+              } else if(allowed.length===0){
+                permsLine=`<div style="font-size:.72rem;color:#c62828;margin-top:2px;">🔒 חסום לכל האורחים</div>`;
+              } else {
+                const allowedStr=allowed.map(g=>esc(g.name)).join(', ');
+                const blockedStr=blocked.map(g=>esc(g.name)).join(', ');
+                permsLine=`<div style="font-size:.72rem;margin-top:2px;"><span style="color:#2e7d32;">👁 ${allowedStr}</span> &nbsp;<span style="color:#c62828;">🔒 ${blockedStr}</span></div>`;
+              }
             }
           }
           html+=`<div class="cat-item ${inListClass}" onclick="toggleCatSelect('${item.id}');document.getElementById('catchk_${item.id}').checked=catSelected.has('${item.id}');updateCatSelectCount()">
             <input type="checkbox" id="catchk_${item.id}" ${checked} onclick="event.stopPropagation();toggleCatSelect('${item.id}');updateCatSelectCount()" style="width:20px;height:20px;cursor:pointer;flex-shrink:0;">
-            <div class="item-main"><div class="cat-item-name">${esc(item.name)} ${badge}</div><div style="margin-top:2px;">${permsBadge}</div></div>
+            <div class="item-main"><div class="cat-item-name">${esc(item.name)} ${badge}</div>${permsLine}</div>
           </div>`;
         } else {
           const actionBtn=inList.length
@@ -1070,15 +1072,14 @@ window.confirmEditCat=async function(){
   const updates={name:newName,visibleTo};
   // אורח לא יכול לשנות מחלקה
   if(currentUser?.role!=='guest') updates.dept=document.getElementById('ecDept').value;
+  // שמור ערכים ישנים לפני ה-await (listener עלול לעדכן catalog אחרי ה-await)
+  const oldItem=catalog.find(c=>c.id===eCatId);
+  const oldDept=oldItem?.dept;
+  const oldName=oldItem?.name;
   await updateDoc(doc(db,'catalog',eCatId),updates);
   // עדכן פריטי רשימה תואמים אם שם או מחלקה השתנו
   if(currentUser?.role!=='guest'){
     const newDept=updates.dept;
-    // קרא oldItem לפני שה-listener יעדכן את catalog
-    const oldItem=catalog.find(c=>c.id===eCatId);
-    const oldDept=oldItem?.dept;
-    const oldName=oldItem?.name;
-    // התאמה לפי catalogId, או לפי שם (לפריטים ישנים בלי catalogId)
     const listToUpdate=listItems.filter(li=>{
       if(li.catalogId && li.catalogId===eCatId) return true;
       if(!li.catalogId && oldName && li.name===oldName) return true;
