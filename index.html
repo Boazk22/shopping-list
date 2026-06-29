@@ -838,7 +838,7 @@ function canSeeCatalogItem(item){
 window.renderCatalog=function(){
   const el=document.getElementById('catContent');
   const q=document.getElementById('catSearch')?.value.toLowerCase()||'';
-  let items=catalog.filter(c=>canSeeCatalogItem(c)&&(!q||c.name.toLowerCase().includes(q)||c.dept.toLowerCase().includes(q)));
+  let items=catalog.filter(c=>canSeeCatalogItem(c)&&(!q||c.name.toLowerCase().includes(q)));
   const deptOrder=settings.deptOrder||DEFAULT_DEPTS();
   items.sort((a,b)=>{
     const ai=deptOrder.indexOf(a.dept),bi=deptOrder.indexOf(b.dept);
