@@ -162,6 +162,7 @@ header h1 { font-size:1.1rem; font-weight:700; }
   <h1 id="headerTitle">🛒 רשימת קניות</h1>
   <div style="display:flex;align-items:center;gap:8px;">
     <button id="catEditModeBtn" onclick="enterCatSelectMode()" style="display:none;background:rgba(255,255,255,0.2);border:none;color:white;border-radius:16px;padding:4px 10px;font-size:0.75rem;cursor:pointer;" title="מצב עריכה">✏️</button>
+    <button id="catSearchBtn" onclick="toggleCatSearch()" style="display:none;background:rgba(255,255,255,0.2);border:none;color:white;border-radius:16px;padding:4px 10px;font-size:0.9rem;cursor:pointer;" title="חיפוש">🔍</button>
     <button id="collapseAllBtn" onclick="toggleCollapseAll()" style="display:none;background:rgba(255,255,255,0.2);border:none;color:white;border-radius:16px;padding:4px 10px;font-size:0.75rem;cursor:pointer;" title="קפל/פתח הכל">⇅</button>
     <button id="fabHeader" onclick="onFab()" style="display:none;background:rgba(255,255,255,0.2);border:none;color:white;border-radius:16px;padding:4px 12px;font-size:1.1rem;cursor:pointer;line-height:1;" title="הוסף פריט">+</button>
     <span class="user-badge" onclick="showUserPicker()" id="userBadge">...</span>
@@ -182,7 +183,11 @@ header h1 { font-size:1.1rem; font-weight:700; }
 </div>
 
 <div class="screen" id="screenCatalog">
-  <div class="cat-search"><input type="text" id="catSearch" placeholder="חיפוש פריט..." oninput="renderCatalog()" autocomplete="off"></div>
+  <div id="catSearchBar" style="display:none;position:sticky;top:48px;z-index:90;background:white;border-bottom:1px solid var(--grey-mid);padding:7px 11px;display:none;align-items:center;gap:7px;">
+    <input type="text" id="catSearch" placeholder="חיפוש פריט..." oninput="renderCatalog()" autocomplete="off"
+      style="flex:1;padding:8px 11px;border:1.5px solid var(--grey-mid);border-radius:9px;font-size:.93rem;direction:rtl;outline:none;">
+    <button onclick="clearCatSearch()" style="background:none;border:none;font-size:1.2rem;color:var(--grey-dark);cursor:pointer;padding:0 4px;line-height:1;" title="נקה חיפוש">✕</button>
+  </div>
   <div id="catSelectBar" style="display:none;background:var(--amber-light);border-bottom:1px solid #f9a825;padding:8px 13px;align-items:center;gap:8px;flex-wrap:wrap;">
     <span id="catSelectCount" style="font-size:.88rem;color:var(--amber);font-weight:700;flex:1;">0 נבחרו</span>
     <button id="catActionMove" onclick="moveDeptSelected()" style="display:none;background:var(--green);color:white;border:none;border-radius:7px;padding:7px 12px;font-size:.85rem;font-weight:600;cursor:pointer;">↔ העבר</button>
@@ -605,7 +610,12 @@ window.switchScreen=function(name,btn){
   colBtn.style.display=(name==='list'||name==='catalog'||name==='reference')?'block':'none';
   const editBtn=document.getElementById('catEditModeBtn');
   editBtn.style.display=(name==='catalog')?'block':'none';
-  if(name!=='catalog'&&catSelectMode) exitCatSelectMode();
+  const searchBtn=document.getElementById('catSearchBtn');
+  if(searchBtn) searchBtn.style.display=(name==='catalog')?'inline-block':'none';
+  if(name!=='catalog'){
+    if(catSelectMode) exitCatSelectMode();
+    hideCatSearch();
+  }
 };
 
 let allCollapsed=false;
@@ -656,6 +666,33 @@ window.exitCatSelectMode=function(){
   document.getElementById('catSelectBar').style.display='none';
   renderCatalog();
 };
+
+let catSearchOpen=false;
+window.toggleCatSearch=function(){
+  catSearchOpen?hideCatSearch():showCatSearch();
+};
+function showCatSearch(){
+  catSearchOpen=true;
+  const bar=document.getElementById('catSearchBar');
+  bar.style.display='flex';
+  document.getElementById('catSearch').focus();
+  document.getElementById('catSearchBtn').style.background='rgba(255,255,255,0.4)';
+}
+function hideCatSearch(){
+  catSearchOpen=false;
+  const bar=document.getElementById('catSearchBar');
+  bar.style.display='none';
+  document.getElementById('catSearch').value='';
+  document.getElementById('catSearchBtn').style.background='rgba(255,255,255,0.2)';
+  renderCatalog();
+}
+window.clearCatSearch=function(){
+  const inp=document.getElementById('catSearch');
+  inp.value='';
+  inp.focus();
+  renderCatalog();
+};
+
 function updateCatSelectCount(){
   const n=catSelected.size;
   document.getElementById('catSelectCount').textContent=n?`${n} נבחרו`:'בחר פריטים';
@@ -1082,7 +1119,7 @@ window.confirmEditCat=async function(){
     const newDept=updates.dept;
     const listToUpdate=listItems.filter(li=>{
       if(li.catalogId && li.catalogId===eCatId) return true;
-      if(!li.catalogId && oldName && li.name===oldName) return true;
+      if(oldName && li.name===oldName) return true;
       return false;
     });
     for(const li of listToUpdate){
