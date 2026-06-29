@@ -262,6 +262,13 @@ header h1 { font-size:1.1rem; font-weight:700; }
       </div>
       <label class="toggle"><input type="checkbox" id="toggleFreq" onchange="saveSettings()" checked><div class="ttrack"></div></label>
     </div>
+    <div class="set-row" onclick="showChangePassModal()" style="cursor:pointer;">
+      <div class="set-label-wrap">
+        <div class="set-label">🔑 קוד מנהל ושחזור</div>
+        <div class="set-sub" id="passStatus">לא מוגדר</div>
+      </div>
+      <span>›</span>
+    </div>
     <div class="set-row" onclick="showAddDeptModal()" style="cursor:pointer;color:var(--green)">
       <div class="set-label">+ הוסף מחלקה</div>
     </div>
