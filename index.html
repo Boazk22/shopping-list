@@ -585,7 +585,7 @@ onSnapshot(query(colList,orderBy("createdAt")), snap=>{
 });
 onSnapshot(colUsers, snap=>{
   users=snap.docs.map(d=>({id:d.id,...d.data()}));
-  renderUserBadge(); renderSettings(); populateOrdererSelects(); renderCatFilterBar();
+  renderUserBadge(); renderSettings(); populateOrdererSelects();
 });
 onSnapshot(colHistory, snap=>{
   history={};
@@ -885,20 +885,10 @@ function renderCatFilterBar(){
   if(!bar) return;
   const role=currentUser?.role;
   // מוצג רק לשותף חלקי ומעלה
-  if(!['admin','partner','partial_partner'].includes(role)){bar.style.display='none';return;}
-  // אוספים את המשתמשים שיש להם פריטים ברשימה
-  const ordererIds=[...new Set(listItems.map(i=>i.addedBy).filter(Boolean))];
-  if(!ordererIds.length){bar.style.display='none';catFilterVisible='all';return;}
-  // אם הסינון הנוכחי הוא משתמש שכבר אין לו פריטים — מאפסים
-  if(catFilterVisible!=='all'&&catFilterVisible!=='inList'&&!ordererIds.includes(catFilterVisible)) catFilterVisible='all';
+  if(!['admin','partner','partial_partner'].includes(role)){bar.style.display='none';catFilterVisible='all';return;}
   bar.style.display='flex';
   let html=`<div class="fchip ${catFilterVisible==='all'?'active':''}" onclick="setCatFilter('all')">הכל</div>`;
-  html+=`<div class="fchip ${catFilterVisible==='inList'?'active':''}" onclick="setCatFilter('inList')">ברשימה</div>`;
-  ordererIds.forEach(uid=>{
-    const u=users.find(u=>u.id===uid);
-    const name=u?u.name:uid;
-    html+=`<div class="fchip ${catFilterVisible===uid?'active':''}" onclick="setCatFilter('${esc(uid)}')">${esc(name)}</div>`;
-  });
+  html+=`<div class="fchip ${catFilterVisible==='mine'?'active':''}" onclick="setCatFilter('mine')">הבחירות שלי</div>`;
   bar.innerHTML=html;
 }
 window.setCatFilter=function(v){catFilterVisible=v;renderCatalog();};
@@ -908,14 +898,10 @@ window.renderCatalog=function(){
   const el=document.getElementById('catContent');
   const q=document.getElementById('catSearch')?.value.toLowerCase()||'';
   let items=catalog.filter(c=>canSeeCatalogItem(c)&&(!q||c.name.toLowerCase().includes(q)));
-  // סינון לפי בחירה ברשימה
-  if(catFilterVisible==='inList'){
-    const inListIds=new Set(listItems.map(i=>i.catalogId||i.name));
-    items=items.filter(c=>inListIds.has(c.id)||inListIds.has(c.name));
-  } else if(catFilterVisible!=='all'){
-    // סינון לפי משתמש שבחר
-    const userListIds=new Set(listItems.filter(i=>i.addedBy===catFilterVisible).map(i=>i.catalogId||i.name));
-    items=items.filter(c=>userListIds.has(c.id)||userListIds.has(c.name));
+  // סינון לפי בחירות המשתמש הנוכחי
+  if(catFilterVisible==='mine'){
+    const myListIds=new Set(listItems.filter(i=>i.addedBy===currentUser?.id).map(i=>i.catalogId||i.name));
+    items=items.filter(c=>myListIds.has(c.id)||myListIds.has(c.name));
   }
   const deptOrder=settings.deptOrder||DEFAULT_DEPTS();
   items.sort((a,b)=>{
