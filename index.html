@@ -188,6 +188,7 @@ header h1 { font-size:1.1rem; font-weight:700; }
       style="flex:1;padding:8px 11px;border:1.5px solid var(--grey-mid);border-radius:9px;font-size:.93rem;direction:rtl;outline:none;">
     <button onclick="clearCatSearch()" style="background:none;border:none;font-size:1.2rem;color:var(--grey-dark);cursor:pointer;padding:0 4px;line-height:1;" title="נקה חיפוש">✕</button>
   </div>
+  <div class="filter-bar" id="catFilterBar" style="display:none;"></div>
   <div id="catSelectBar" style="display:none;background:var(--amber-light);border-bottom:1px solid #f9a825;padding:8px 13px;align-items:center;gap:8px;flex-wrap:wrap;">
     <span id="catSelectCount" style="font-size:.88rem;color:var(--amber);font-weight:700;flex:1;">0 נבחרו</span>
     <button id="catActionMove" onclick="moveDeptSelected()" style="display:none;background:var(--green);color:white;border:none;border-radius:7px;padding:7px 12px;font-size:.85rem;font-weight:600;cursor:pointer;">↔ העבר</button>
@@ -562,6 +563,7 @@ const docSettings = doc(db,"settings","main");
 let catalog=[], listItems=[], users=[], history={}, weights=[], prices=[];
 let settings={ deptOrder:DEFAULT_DEPTS(), freqSuggestions:true, adminPass:'' };
 let currentUser=null, currentScreen='list', filterOrderer='all', filterPending=false;
+let catFilterVisible='all'; // 'all' | userId
 let mItemId=null, mQty=1, eListId=null, eQty=1, eCatId=null;
 let collapsedDepts={};
 
@@ -583,7 +585,7 @@ onSnapshot(query(colList,orderBy("createdAt")), snap=>{
 });
 onSnapshot(colUsers, snap=>{
   users=snap.docs.map(d=>({id:d.id,...d.data()}));
-  renderUserBadge(); renderSettings(); populateOrdererSelects();
+  renderUserBadge(); renderSettings(); populateOrdererSelects(); renderCatFilterBar();
 });
 onSnapshot(colHistory, snap=>{
   history={};
@@ -878,10 +880,35 @@ function canSeeCatalogItem(item){
   const vt=item.visibleTo||['partners'];
   return vt.includes(currentUser.id);
 }
+function renderCatFilterBar(){
+  const bar=document.getElementById('catFilterBar');
+  if(!bar) return;
+  const role=currentUser?.role;
+  // מוצג רק לשותף חלקי ומעלה
+  if(!['admin','partner','partial_partner'].includes(role)){bar.style.display='none';return;}
+  const guests=users.filter(u=>u.role==='guest');
+  if(!guests.length){bar.style.display='none';return;}
+  bar.style.display='flex';
+  let html=`<div class="fchip ${catFilterVisible==='all'?'active':''}" onclick="setCatFilter('all')">הכל</div>`;
+  guests.forEach(g=>{
+    html+=`<div class="fchip ${catFilterVisible===g.id?'active':''}" onclick="setCatFilter('${esc(g.id)}')">${esc(g.name)}</div>`;
+  });
+  bar.innerHTML=html;
+}
+window.setCatFilter=function(v){catFilterVisible=v;renderCatalog();};
+
 window.renderCatalog=function(){
+  renderCatFilterBar();
   const el=document.getElementById('catContent');
   const q=document.getElementById('catSearch')?.value.toLowerCase()||'';
   let items=catalog.filter(c=>canSeeCatalogItem(c)&&(!q||c.name.toLowerCase().includes(q)));
+  // סינון לפי חשיפה
+  if(catFilterVisible!=='all'){
+    items=items.filter(c=>{
+      const vt=c.visibleTo||['partners'];
+      return vt.includes(catFilterVisible);
+    });
+  }
   const deptOrder=settings.deptOrder||DEFAULT_DEPTS();
   items.sort((a,b)=>{
     const ai=deptOrder.indexOf(a.dept),bi=deptOrder.indexOf(b.dept);
