@@ -886,12 +886,12 @@ function renderCatFilterBar(){
   const role=currentUser?.role;
   // מוצג רק לשותף חלקי ומעלה
   if(!['admin','partner','partial_partner'].includes(role)){bar.style.display='none';return;}
-  const guests=users.filter(u=>u.role==='guest');
-  if(!guests.length){bar.style.display='none';return;}
+  const others=users.filter(u=>u.id!==currentUser?.id);
+  if(!others.length){bar.style.display='none';return;}
   bar.style.display='flex';
   let html=`<div class="fchip ${catFilterVisible==='all'?'active':''}" onclick="setCatFilter('all')">הכל</div>`;
-  guests.forEach(g=>{
-    html+=`<div class="fchip ${catFilterVisible===g.id?'active':''}" onclick="setCatFilter('${esc(g.id)}')">${esc(g.name)}</div>`;
+  others.forEach(u=>{
+    html+=`<div class="fchip ${catFilterVisible===u.id?'active':''}" onclick="setCatFilter('${esc(u.id)}')">${esc(u.name)}</div>`;
   });
   bar.innerHTML=html;
 }
@@ -904,9 +904,15 @@ window.renderCatalog=function(){
   let items=catalog.filter(c=>canSeeCatalogItem(c)&&(!q||c.name.toLowerCase().includes(q)));
   // סינון לפי חשיפה
   if(catFilterVisible!=='all'){
+    const targetUser=users.find(u=>u.id===catFilterVisible);
+    const targetRole=targetUser?.role||'guest';
     items=items.filter(c=>{
       const vt=c.visibleTo||['partners'];
-      return vt.includes(catFilterVisible);
+      if(['admin','partner','partial_partner'].includes(targetRole)){
+        return vt.includes('partners');
+      } else {
+        return vt.includes(catFilterVisible);
+      }
     });
   }
   const deptOrder=settings.deptOrder||DEFAULT_DEPTS();
