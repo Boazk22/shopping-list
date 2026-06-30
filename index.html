@@ -581,7 +581,7 @@ onSnapshot(query(colCatalog,orderBy("name")), snap=>{
 });
 onSnapshot(query(colList,orderBy("createdAt")), snap=>{
   listItems=snap.docs.map(d=>({id:d.id,...d.data()}));
-  renderList(); renderSugg();
+  renderList(); renderSugg(); renderCatFilterBar();
 });
 onSnapshot(colUsers, snap=>{
   users=snap.docs.map(d=>({id:d.id,...d.data()}));
@@ -886,12 +886,18 @@ function renderCatFilterBar(){
   const role=currentUser?.role;
   // מוצג רק לשותף חלקי ומעלה
   if(!['admin','partner','partial_partner'].includes(role)){bar.style.display='none';return;}
-  const others=users.filter(u=>u.id!==currentUser?.id);
-  if(!others.length){bar.style.display='none';return;}
+  // אוספים את המשתמשים שיש להם פריטים ברשימה
+  const ordererIds=[...new Set(listItems.map(i=>i.addedBy).filter(Boolean))];
+  if(!ordererIds.length){bar.style.display='none';catFilterVisible='all';return;}
+  // אם הסינון הנוכחי הוא משתמש שכבר אין לו פריטים — מאפסים
+  if(catFilterVisible!=='all'&&catFilterVisible!=='inList'&&!ordererIds.includes(catFilterVisible)) catFilterVisible='all';
   bar.style.display='flex';
   let html=`<div class="fchip ${catFilterVisible==='all'?'active':''}" onclick="setCatFilter('all')">הכל</div>`;
-  others.forEach(u=>{
-    html+=`<div class="fchip ${catFilterVisible===u.id?'active':''}" onclick="setCatFilter('${esc(u.id)}')">${esc(u.name)}</div>`;
+  html+=`<div class="fchip ${catFilterVisible==='inList'?'active':''}" onclick="setCatFilter('inList')">ברשימה</div>`;
+  ordererIds.forEach(uid=>{
+    const u=users.find(u=>u.id===uid);
+    const name=u?u.name:uid;
+    html+=`<div class="fchip ${catFilterVisible===uid?'active':''}" onclick="setCatFilter('${esc(uid)}')">${esc(name)}</div>`;
   });
   bar.innerHTML=html;
 }
@@ -902,18 +908,14 @@ window.renderCatalog=function(){
   const el=document.getElementById('catContent');
   const q=document.getElementById('catSearch')?.value.toLowerCase()||'';
   let items=catalog.filter(c=>canSeeCatalogItem(c)&&(!q||c.name.toLowerCase().includes(q)));
-  // סינון לפי חשיפה
-  if(catFilterVisible!=='all'){
-    const targetUser=users.find(u=>u.id===catFilterVisible);
-    const targetRole=targetUser?.role||'guest';
-    items=items.filter(c=>{
-      const vt=c.visibleTo||['partners'];
-      if(['admin','partner','partial_partner'].includes(targetRole)){
-        return vt.includes('partners');
-      } else {
-        return vt.includes(catFilterVisible);
-      }
-    });
+  // סינון לפי בחירה ברשימה
+  if(catFilterVisible==='inList'){
+    const inListIds=new Set(listItems.map(i=>i.catalogId||i.name));
+    items=items.filter(c=>inListIds.has(c.id)||inListIds.has(c.name));
+  } else if(catFilterVisible!=='all'){
+    // סינון לפי משתמש שבחר
+    const userListIds=new Set(listItems.filter(i=>i.addedBy===catFilterVisible).map(i=>i.catalogId||i.name));
+    items=items.filter(c=>userListIds.has(c.id)||userListIds.has(c.name));
   }
   const deptOrder=settings.deptOrder||DEFAULT_DEPTS();
   items.sort((a,b)=>{
